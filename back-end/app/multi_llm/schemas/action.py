@@ -1,5 +1,4 @@
-# multi-llm/app/schemas/action.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from enum import Enum
 from typing import Optional
 
@@ -15,5 +14,4 @@ class Action(BaseModel):
     actor: str
     type: ActionType
     target: Optional[str] = None
-    reason: str = Field(min_length=1, max_length=280)
-    intensity: Optional[int] = Field(default=None, ge=1, le=3)
+    reason: str
