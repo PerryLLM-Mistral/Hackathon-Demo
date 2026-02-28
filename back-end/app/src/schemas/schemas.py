@@ -5,11 +5,11 @@ from pydantic import BaseModel, Field, ConfigDict
 class CountryBase(BaseModel):
     name: str = Field(..., min_length=1)
     economy: int = Field(default=0)
-    social_status: int = Field(default=0)
+    social: int = Field(default=0)
     demography: int = Field(default=0)
     technology: int = Field(default=0)
     military_power: int = Field(default=0)
-    num_habitants: int = Field(default=0, ge=0)
+    n_habitants: int = Field(default=0, ge=0)
     latitude: float = Field(default=0.0, ge=-90.0, le=90.0)
     longitude: float = Field(default=0.0, ge=-180.0, le=180.0)
 

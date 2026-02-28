@@ -1,25 +1,27 @@
-# tools/war_tool.py
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, AliasChoices
+from app.multi_llm.schemas.world import WorldState
 
-class WarTool:
-    name = "war_action"
-    description = "Launch a military attack against another country."
+TOOL_NAME = "DECLARE_WAR"
+TOOL_DESCRIPTION = "Declare war. Worsens relations strongly."
 
-    class Schema(BaseModel):
-        source_country: str
-        target_country: str
-        intensity: float = Field(..., ge=0.0, le=1.0)
-        justification: Optional[str] = None
+class DeclareWarArgs(BaseModel):
+    target_id: str = Field(
+        validation_alias=AliasChoices("target_id", "country", "target"),
+        min_length=3,
+        max_length=3
+    )
+    intensity: int = Field(default=2, ge=1, le=3)
+    reason: str = Field(
+        validation_alias=AliasChoices("reason", "because", "motivation"),
+        min_length=1,
+        max_length=280
+    )
 
-    def generate_output(self, action: Schema) -> dict:
-        """
-        Generates the output that the agent returns.
-        """
-        return {
-            "action_type": "war",
-            "source_country": action.source_country,
-            "target_country": action.target_country,
-            "intensity": action.intensity,
-            "justification": action.justification or "No justification provided."
-        }
+def validate(args: DeclareWarArgs, world: WorldState, actor_id: str) -> None:
+    ids = {c.id for c in world.countries}
+    if actor_id not in ids:
+        raise ValueError("Invalid actor_id")
+    if args.target_id not in ids:
+        raise ValueError("Invalid target_id")
+    if args.target_id == actor_id:
+        raise ValueError("Cannot declare war on self")
