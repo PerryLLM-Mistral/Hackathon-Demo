@@ -1,13 +1,21 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 from app.multi_llm.schemas.world import WorldState
 
 TOOL_NAME = "DECLARE_WAR"
 TOOL_DESCRIPTION = "Declare war. Worsens relations strongly."
 
 class DeclareWarArgs(BaseModel):
-    target_id: str = Field(min_length=3, max_length=3)
+    target_id: str = Field(
+        validation_alias=AliasChoices("target_id", "country", "target"),
+        min_length=3,
+        max_length=3
+    )
     intensity: int = Field(default=2, ge=1, le=3)
-    reason: str = Field(min_length=1, max_length=280)
+    reason: str = Field(
+        validation_alias=AliasChoices("reason", "because", "motivation"),
+        min_length=1,
+        max_length=280
+    )
 
 def validate(args: DeclareWarArgs, world: WorldState, actor_id: str) -> None:
     ids = {c.id for c in world.countries}

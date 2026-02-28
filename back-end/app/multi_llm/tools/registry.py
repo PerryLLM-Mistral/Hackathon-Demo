@@ -16,7 +16,10 @@ TOOL_SPECS: dict[str, dict] = {
 }
 
 def tools_prompt_block() -> str:
-    lines = []
-    for name, spec in TOOL_SPECS.items():
-        lines.append(f"- {name}: {spec['description']}")
-    return "Available tools:\n" + "\n".join(lines)
+    return (
+        "Available tools:\n"
+        "- DECLARE_WAR: arguments must be {\"target_id\": \"AAA\", \"intensity\": 1-3, \"reason\": \"...\"}\n"
+        "- ALLY: arguments must be {\"target_id\": \"AAA\", \"intensity\": 1-3, \"reason\": \"...\"}\n"
+        "- TRADE: arguments must be {\"target_id\": \"AAA\", \"intensity\": 1-3, \"reason\": \"...\"}\n"
+        "IMPORTANT: Use the key 'target_id' (not 'country', not 'target').\n"
+    )
