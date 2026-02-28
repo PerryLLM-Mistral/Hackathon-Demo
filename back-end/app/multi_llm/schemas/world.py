@@ -1,28 +1,26 @@
 from typing import List, Literal
 from pydantic import BaseModel, Field
 
-
 RelationLabel = Literal["WAR", "NEUTRAL", "ALLY"]
 
 
-def relation_label(value: int) -> RelationLabel:
+def relation_label(relation: int) -> RelationLabel:
     """
-    Converts numeric relation value into a qualitative label.
-    This label is derived, not stored in the database.
+    Converts numeric relation into a qualitative label.
+    Derived value (not stored in DB).
     """
-    if value <= -90:
+    if relation <= -60:
         return "WAR"
-    if value >= 60:
+    if relation >= 60:
         return "ALLY"
     return "NEUTRAL"
 
 
 class CountryState(BaseModel):
     """
-    Snapshot of a country (from DB).
+    Snapshot of a country (mirrors DB columns in src/models/Country).
     """
-
-    id: str  # USA, CHI, RUS
+    id: str
     name: str
 
     economy: int = Field(ge=0, le=100)
@@ -31,35 +29,28 @@ class CountryState(BaseModel):
     technology: int = Field(ge=0, le=100)
     military_power: int = Field(ge=0, le=100)
     n_habitants: int = Field(ge=0)
+    latitude: float = Field(ge=-90.0, le=90.0)
+    longitude: float = Field(ge=-180.0, le=180.0)
 
 
 class RelationState(BaseModel):
     """
-    Snapshot of a relation between two countries.
+    Snapshot of a relationship (mirrors DB columns in src/models/Relationship).
     """
-
     id: int
     country_1: str
     country_2: str
-    value: int = Field(ge=-100, le=100)
+    relation: int = Field(ge=-100, le=100)
+
     def label(self) -> RelationLabel:
-        """
-        Returns derived qualitative label for LLM context or UI.
-        """
-        return relation_label(self.value)
+        return relation_label(self.relation)
 
 
 class WorldState(BaseModel):
     """
-    Snapshot of the world passed to agents.
-
-    Built from:
-        - countries table
-        - relations table
-
-    'turn' is not stored in DB. It lives in memory.
+    World snapshot passed to agents.
+    Built from the 2 DB tables: countries + relationships.
     """
-
     turn: int
     countries: List[CountryState]
     relations: List[RelationState]

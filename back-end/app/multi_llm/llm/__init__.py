@@ -6,3 +6,7 @@ Optional LLM integration layer:
 - parser.py: parses model output into structured Action
 - guardrails.py: enforces safety/validity constraints on Action
 """
+
+from .provider import MistralProvider
+
+__all__ = ["MistralProvider"]

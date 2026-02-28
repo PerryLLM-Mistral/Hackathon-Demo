@@ -7,11 +7,11 @@ class Country(Base):
     id = Column(String(3), primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     economy = Column(Integer, default=0, nullable=False)
-    social_status = Column(Integer, default=0, nullable=False)
+    social = Column(Integer, default=0, nullable=False)
     demography = Column(Integer, default=0, nullable=False)
     technology = Column(Integer, default=0, nullable=False)
     military_power = Column(Integer, default=0, nullable=False)
-    num_habitants = Column(Integer, default=0, nullable=False)
+    n_habitants = Column(Integer, default=0, nullable=False)
     latitude = Column(Float, default=0.0, nullable=False)
     longitude = Column(Float, default=0.0, nullable=False)
 

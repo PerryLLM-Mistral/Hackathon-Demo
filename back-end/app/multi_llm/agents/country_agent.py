@@ -1,64 +1,78 @@
+﻿from __future__ import annotations
+
+import json
 import random
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from app.multi_llm.schemas.world import WorldState
+from pydantic import ValidationError
+
+from app.multi_llm.agents.base import BaseAgent
 from app.multi_llm.schemas.action import Action, ActionType
+from app.multi_llm.schemas.tool_call import ToolCall
+from app.multi_llm.schemas.world import WorldState
+from app.multi_llm.tools.registry import TOOL_SPECS, tools_prompt_block
+
+if TYPE_CHECKING:
+    from app.multi_llm.llm.provider import MistralProvider
 
 
-class CountryAgent:
+class CountryAgent(BaseAgent):
     """
-    Represents a single country agent.
+    Agent for a single country.
 
-    The agent does NOT modify the database.
-    It only proposes an Action.
+    - `decide`: lightweight heuristic fallback (no model call)
+    - `decide_llm`: tool-based structured model decision
     """
 
-    def __init__(
-        self,
-        country_id: int,
-        country_name: str,
-        prompt_path: Optional[str] = None,
-    ):
-        self.country_id = country_id
-        self.country_name = country_name
+    def __init__(self, country_id: str, country_name: str, prompt_path: Optional[str] = None):
+        super().__init__(country_id=country_id, country_name=country_name)
         self.prompt_text = self._load_prompt(prompt_path) if prompt_path else ""
 
     def _load_prompt(self, path: str) -> str:
-        """
-        Loads static personality prompt from file.
-        """
         return Path(path).read_text(encoding="utf-8")
 
-    def _choose_target(self, world: WorldState) -> Optional[int]:
-        """
-        Randomly selects a valid target country.
-        """
+    def _choose_target(self, world: WorldState) -> Optional[str]:
         candidates = [c.id for c in world.countries if c.id != self.country_id]
         return random.choice(candidates) if candidates else None
 
-    def _get_relation_value(self, world: WorldState, target_id: int) -> Optional[int]:
-        """
-        Retrieves numeric relation value between this country and target.
-        """
+    def _get_relation(self, world: WorldState, target_id: str) -> Optional[int]:
         a, b = sorted([self.country_id, target_id])
-        for r in world.relations:
-            if r.country_1 == a and r.country_2 == b:
-                return r.value
+        for rel in world.relations:
+            x, y = sorted([rel.country_1, rel.country_2])
+            if x == a and y == b:
+                return rel.relation
         return None
 
-    async def decide(self, world: WorldState) -> Action:
+    def _normalize_tool_arguments(self, raw_arguments: object, tool_name: str) -> dict:
         """
-        Heuristic decision logic.
-        Replace later with LLM provider.
+        Normalize common LLM argument shape mismatches before schema validation.
         """
+        if not isinstance(raw_arguments, dict):
+            return {}
 
-        # 10% probability of doing nothing
+        args = dict(raw_arguments)
+
+        # Common alias from model outputs.
+        if "target_id" not in args and "target" in args:
+            args["target_id"] = args["target"]
+
+        if "reason" not in args or not args.get("reason"):
+            args["reason"] = f"{tool_name} selected by model"
+
+        if "intensity" not in args:
+            args["intensity"] = 1
+
+        return args
+
+    async def decide(self, world: WorldState) -> Action:
+        # Small chance to pass to create non-deterministic behavior.
         if random.random() < 0.1:
             return Action(
                 actor_id=self.country_id,
                 type=ActionType.PASS,
-                reason="Strategic pause this turn"
+                reason="Strategic pause this turn",
+                intensity=1,
             )
 
         target_id = self._choose_target(world)
@@ -66,44 +80,114 @@ class CountryAgent:
             return Action(
                 actor_id=self.country_id,
                 type=ActionType.PASS,
-                reason="No available targets"
+                reason="No available targets",
+                intensity=1,
             )
 
-        relation_value = self._get_relation_value(world, target_id)
-
-        if relation_value is None:
-            # No existing relation → initiate trade
+        relation = self._get_relation(world, target_id)
+        if relation is None:
             return Action(
                 actor_id=self.country_id,
                 type=ActionType.TRADE,
                 target_id=target_id,
+                reason="Establish initial cooperation",
                 intensity=1,
-                reason="Establish initial cooperation"
             )
 
-        if relation_value <= -60:
+        if relation <= -60:
             return Action(
                 actor_id=self.country_id,
                 type=ActionType.DECLARE_WAR,
                 target_id=target_id,
+                reason="Escalating hostile relationship",
                 intensity=2,
-                reason="Escalating hostile relationship"
             )
 
-        if relation_value >= 60:
+        if relation >= 60:
             return Action(
                 actor_id=self.country_id,
                 type=ActionType.ALLY,
                 target_id=target_id,
+                reason="Strengthen strategic alliance",
                 intensity=1,
-                reason="Strengthen strategic alliance"
             )
 
-        # Neutral zone
         return Action(
             actor_id=self.country_id,
             type=ActionType.TRADE,
             target_id=target_id,
+            reason="Improve neutral relations",
             intensity=1,
-            reason="Improve neutral relations"
+        )
+
+    async def decide_llm(self, world: WorldState, provider: "MistralProvider") -> Action:
+        world_payload = {
+            "turn": world.turn,
+            "self": self.country_id,
+            "countries": [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "economy": c.economy,
+                    "military_power": c.military_power,
+                }
+                for c in world.countries
+            ],
+            "relations": [
+                {
+                    "country_1": r.country_1,
+                    "country_2": r.country_2,
+                    "relation": r.relation,
+                }
+                for r in world.relations
+            ],
+        }
+
+        system_prompt = (
+            f"You are {self.country_name} ({self.country_id}).\n"
+            "Choose exactly ONE tool that best serves your interests this turn.\n"
+            "Be aggressive if relations are bad and you have high military_power.\n\n"
+            f"{self.prompt_text}\n\n"
+            f"{tools_prompt_block()}\n\n"
+            "Output JSON with this schema:\n"
+            '{ "tool": "DECLARE_WAR|ALLY|TRADE", "arguments": { ... } }\n'
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "WORLD:\n" + json.dumps(world_payload, indent=2)},
+        ]
+
+        tool_call = await provider.complete_json(messages=messages, schema=ToolCall)
+
+        if tool_call.tool not in TOOL_SPECS:
+            return Action(
+                actor_id=self.country_id,
+                type=ActionType.PASS,
+                reason="Unknown tool from model",
+                intensity=1,
+            )
+
+        args_model = TOOL_SPECS[tool_call.tool]["args_model"]
+        validate_fn = TOOL_SPECS[tool_call.tool]["validate"]
+
+        normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_call.tool)
+
+        try:
+            args = args_model.model_validate(normalized_args)
+            validate_fn(args, world, self.country_id)
+        except (ValidationError, ValueError) as exc:
+            return Action(
+                actor_id=self.country_id,
+                type=ActionType.PASS,
+                reason=f"Invalid tool arguments from model: {exc}",
+                intensity=1,
+            )
+
+        return Action(
+            actor_id=self.country_id,
+            type=ActionType(tool_call.tool),
+            target_id=getattr(args, "target_id", None),
+            reason=getattr(args, "reason", "No reason"),
+            intensity=getattr(args, "intensity", 1),
         )

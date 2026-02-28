@@ -1,16 +1,14 @@
-# app/db/crud/world.py
-
 from sqlalchemy.orm import Session
-from app.db.models import Country, Relation
+from app.src.models.models import Country, Relation
 from app.multi_llm.schemas.world import WorldState, CountryState, RelationState
 
 AGENT_IDS = ["USA", "CHI", "RUS"]
 
 def build_world_state_for_agents(db: Session, turn: int) -> WorldState:
-    # Load ONLY the countries used by agents
+    # Load only the 3 countries used by the fixed agents
     countries = db.query(Country).filter(Country.id.in_(AGENT_IDS)).all()
 
-    # Load ONLY relations between the 3 countries
+    # Load only relations among these 3 countries (any stored order)
     relations = db.query(Relation).filter(
         Relation.country_1.in_(AGENT_IDS),
         Relation.country_2.in_(AGENT_IDS),
