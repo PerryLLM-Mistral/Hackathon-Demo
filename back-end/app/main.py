@@ -19,3 +19,9 @@ async def step():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+
+@app.get("/debug")
+async def debug():
+    world = engine.get_state()
+    actions = await orchestrator.decide_turn(world)
+    return actions
