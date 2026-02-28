@@ -1,0 +1,25 @@
+@use '../../App.sass' as *;
+
+.navbar
+  width: 100%;
+  height: 8dvh;
+  padding: 0 4% 0 4%;
+  background: $secondary-color;
+  display: flex;
+  justify-content: start;
+  align-items: center;
+  gap: 8vw;
+  box-shadow: 0 -4px 4px 5px rgba(78, 130, 87, 0.2);
+
+.navbar-link
+  color: $font-color;
+  font-size: $font-primary-size;
+  font-weight: $font-primary-weight;
+  text-decoration: none;
+  transition: color 0.2s ease, transform 0.2s ease;
+
+.navbar-link:hover
+  color: $font-hover-color;
+
+.navbar-link:active
+  transform: scale(0.95);

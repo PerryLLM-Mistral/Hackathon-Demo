@@ -17,7 +17,6 @@ from app.multi_llm.tools.registry import TOOL_SPECS, tools_prompt_block
 if TYPE_CHECKING:
     from app.multi_llm.llm.provider import MistralProvider
 
-
 class CountryAgent(BaseAgent):
     """
     Agent for a single country.
@@ -136,6 +135,36 @@ class CountryAgent(BaseAgent):
             print(f"DEBUG [Bridge Error]: Could not send to browser. {e}")
 
     async def decide_llm(self, world: WorldState, provider: "MistralProvider") -> Action:
+
+        # ---------- helpers locales ----------
+        def _pending_requesters_for_me() -> list[str]:
+            reqs: list[str] = []
+            for r in world.relations:
+                requester = getattr(r, "pending_alliance_from", None)
+                if not requester:
+                    continue
+                if self.country_id not in (r.country_1, r.country_2):
+                    continue
+                other = r.country_2 if r.country_1 == self.country_id else r.country_1
+                # si el requester es el "other" del par, entonces esa petición va dirigida a mí
+                if requester == other:
+                    reqs.append(requester)
+            return reqs
+
+        def _relation_with(other_id: str) -> int:
+            for r in world.relations:
+                if (r.country_1 == self.country_id and r.country_2 == other_id) or (
+                    r.country_2 == self.country_id and r.country_1 == other_id
+                ):
+                    return int(r.relation)
+            return 0
+
+        # ---------- MUST RESPOND ----------
+        pending_requesters = _pending_requesters_for_me()
+        forced_mode = bool(pending_requesters)
+        forced_requester = pending_requesters[0] if forced_mode else None
+
+        # ---------- payload: incluye pending_alliance_from ----------
         world_payload = {
             "turn": world.turn,
             "self": self.country_id,
@@ -153,33 +182,63 @@ class CountryAgent(BaseAgent):
                     "country_1": r.country_1,
                     "country_2": r.country_2,
                     "relation": r.relation,
+                    "pending_alliance_from": getattr(r, "pending_alliance_from", None),
                 }
                 for r in world.relations
             ],
         }
 
-        system_prompt = (
-            f"You are {self.country_name} ({self.country_id}).\n"
-            "Choose exactly ONE tool that best serves your interests this turn.\n"
-            "Be aggressive if relations are bad and you have high military_power.\n\n"
-            f"{self.prompt_text}\n\n"
-            f"{tools_prompt_block()}\n\n"
-            "Output JSON with this schema:\n"
-            '{ "tool": "DECLARE_WAR|ALLY|TRADE", "arguments": { ... } }\n'
-        )
+        # ---------- tool restriction ----------
+        if forced_mode:
+            # RESPOND_ALLIANCE only allowed
+            allowed_tools = {"RESPOND_ALLIANCE"}
+            # limited TOOL_SPECS
+            tool_specs = {k: v for k, v in TOOL_SPECS.items() if k in allowed_tools}
+
+            rel_score = _relation_with(forced_requester)
+            tools_block = (
+                "Available tools:\n"
+                "- RESPOND_ALLIANCE: arguments must be {\"target_id\": \"AAA\", \"accept\": true|false, \"reason\": \"...\"}\n"
+                "IMPORTANT: Use the key 'target_id'.\n"
+            )
+
+            system_prompt = (
+                f"You are {self.country_name} ({self.country_id}).\n"
+                f"You have a PENDING alliance proposal from {forced_requester}.\n"
+                f"Your current relation score with {forced_requester} is {rel_score} (range -100..100).\n"
+                "You MUST choose RESPOND_ALLIANCE now.\n\n"
+                f"{self.prompt_text}\n\n"
+                f"{tools_block}\n\n"
+                "Output JSON with this schema:\n"
+                '{ "tool": "RESPOND_ALLIANCE", "arguments": { ... } }\n'
+            )
+        else:
+            # Normal mode
+            tool_specs = TOOL_SPECS
+
+            system_prompt = (
+                f"You are {self.country_name} ({self.country_id}).\n"
+                "Choose exactly ONE tool that best serves your interests this turn.\n"
+                "Be aggressive if relations are bad and you have high military_power.\n\n"
+                f"{self.prompt_text}\n\n"
+                f"{tools_prompt_block()}\n\n"
+                "Output JSON with this schema:\n"
+                '{ "tool": "DECLARE_WAR|PROPOSE_ALLIANCE|RESPOND_ALLIANCE|TRADE", "arguments": { ... } }\n'
+            )
 
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": "WORLD:\n" + json.dumps(world_payload, indent=2)},
         ]
 
+        # ---------- call model ----------
         tool_call = await provider.complete_json(messages=messages, schema=ToolCall)
 
         if tool_call.tool not in TOOL_SPECS:
             action = Action(
                 actor_id=self.country_id,
                 type=ActionType.PASS,
-                reason="Unknown tool from model",
+                reason="Unknown or disallowed tool from model",
                 intensity=1,
             )
         
@@ -192,15 +251,32 @@ class CountryAgent(BaseAgent):
 
             return action
 
-        args_model = TOOL_SPECS[tool_call.tool]["args_model"]
-        validate_fn = TOOL_SPECS[tool_call.tool]["validate"]
+        args_model = tool_specs[tool_call.tool]["args_model"]
+        validate_fn = tool_specs[tool_call.tool]["validate"]
 
         normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_call.tool)
+
+        # En modo forced, si el modelo no puso target_id, lo forzamos al requester para evitar bloqueos
+        if forced_mode and tool_call.tool == "RESPOND_ALLIANCE":
+            normalized_args.setdefault("target_id", forced_requester)
 
         try:
             args = args_model.model_validate(normalized_args)
             validate_fn(args, world, self.country_id)
         except (ValidationError, ValueError) as exc:
+            # fallback heurístico si está en forced_mode (para que nunca se quede sin responder)
+            if forced_mode:
+                rel_score = _relation_with(forced_requester)
+                accept = rel_score >= 10
+                action = Action(
+                    actor_id=self.country_id,
+                    type=ActionType.RESPOND_ALLIANCE,
+                    target_id=forced_requester,
+                    accept=accept,
+                    reason=("Accept (fallback): relations sufficiently positive." if accept else "Reject (fallback): insufficient trust/benefit."),
+                    intensity=1,
+                )
+
             action = Action(
                 actor_id=self.country_id,
                 type=ActionType.PASS,
@@ -212,7 +288,7 @@ class CountryAgent(BaseAgent):
             self._notify_bridge({
                 "type": "AGENT_LOG",
                 "agent": self.country_id,
-                "message": f"Invalid arguments for {tool_call.tool}. Passing turn."
+                "message": action.reason
             })
 
             return action
@@ -221,6 +297,7 @@ class CountryAgent(BaseAgent):
         target_id = getattr(args, "target_id", None)
         reason = getattr(args, "reason", "No reason provided")
         intensity = getattr(args, "intensity", 1)
+        accept = getattr(args, "accept", None)
 
         final_action = Action(
             actor_id=self.country_id,
@@ -228,6 +305,7 @@ class CountryAgent(BaseAgent):
             target_id=target_id,
             reason=reason,
             intensity=intensity,
+            accept=accept
         )
 
         # NOTIFY: broadcast the successful action
@@ -238,7 +316,8 @@ class CountryAgent(BaseAgent):
             "target": target_id,
             "intensity": intensity,
             "reason": reason,
-            "message": f"{self.country_id} performs {final_action.type.value} on {target_id or 'themselves'} (Intensity: {intensity})"
+            "accept": accept,
+            "message": f"{self.country_id} performs {final_action.type.value} on {target_id or 'themselves'} (Intensity: {intensity}, Accept: {accept})"
         })
 
         return final_action
