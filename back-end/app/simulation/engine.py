@@ -1,93 +1,96 @@
+# app/simulation/engine.py
+
 from __future__ import annotations
 
-from typing import Dict, Tuple, List
+from typing import Optional
 
-from app.multi_llm.schemas.world import WorldState, relation_label
+from app.multi_llm.schemas.world import WorldState, RelationState
 from app.multi_llm.schemas.action import Action, ActionType
-from app.simulation.rules import relation_delta_for_action, clamp_relation
-from app.simulation.types import TurnDelta, RelationDelta
+from app.simulation.effects import get_effect
 
 
-class SimulationEngine:
+def clamp_int(x: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, x))
+
+
+def find_relation(world: WorldState, a: str, b: str) -> Optional[RelationState]:
+    for r in world.relations:
+        if (r.country_1 == a and r.country_2 == b) or (r.country_1 == b and r.country_2 == a):
+            return r
+    return None
+
+
+def ensure_relation(world: WorldState, a: str, b: str) -> RelationState:
+    rel = find_relation(world, a, b)
+    if rel is not None:
+        return rel
+
+    new_id = max((r.id for r in world.relations), default=0) + 1
+    # pending_alliance_from is expected to exist in RelationState after your schema change.
+    rel = RelationState(id=new_id, country_1=a, country_2=b, relation=0, pending_alliance_from=None)
+    world.relations.append(rel)
+    return rel
+
+
+def find_country(world: WorldState, country_id: str):
+    for c in world.countries:
+        if c.id == country_id:
+            return c
+    return None
+
+
+def apply_action(world: WorldState, action: Action) -> None:
     """
-    Deterministic simulation engine.
+    Applies quantitative actions to the world.
 
-    IMPORTANT:
-    - This engine does not talk to Postgres.
-    - It operates on in-memory WorldState.
-    - The DB layer must persist the resulting relation updates.
+    Quantitative-only policy:
+    - PASS: no-op
+    - PROPOSE_ALLIANCE: creates pending alliance request state (no direct numeric deltas)
+    - RESPOND_ALLIANCE: applies +/- relation delta and clears pending
+    - Others: apply effects from effects.py, scaled by intensity when appropriate
     """
+    if action.type == ActionType.PASS:
+        return
 
-    def __init__(self):
-        self.turn = 0  # In-memory turn counter (NOT in DB)
+    # For anything but PASS we expect a target (PROPOSE/RESPOND/WAR/TRADE/SANCTION)
+    if not action.target_id:
+        return
 
-    def next_turn_number(self) -> int:
-        self.turn += 1
-        return self.turn
+    rel = ensure_relation(world, action.actor_id, action.target_id)
 
-    def apply_actions(self, world: WorldState, actions: List[Action]) -> Tuple[TurnDelta, Dict[int, int]]:
-        """
-        Apply actions to the world relations.
+    # 1) Proposal: only sets pending state, no numeric effects
+    if action.type == ActionType.PROPOSE_ALLIANCE:
+        # No permitir spam: si ya hay una petición pendiente en este par, no haces nada.
+        if getattr(rel, "pending_alliance_from", None) is not None:
+            return
 
-        Returns:
-        - TurnDelta: delta payload for API/WS
-        - relation_updates: dict {relation_id: new_value} to persist in DB
-        """
-        turn = self.next_turn_number()
+        rel.pending_alliance_from = action.actor_id
+        if hasattr(rel, "pending_alliance_turn"):
+            rel.pending_alliance_turn = world.turn
+        return
 
-        # Index relations for quick lookup by unordered pair (min,max)
-        pair_to_relation = {}
-        for r in world.relations:
-            a, b = sorted([r.country_1, r.country_2])
-            pair_to_relation[(a, b)] = r
+    # 2) Response: apply +/-20 and clear pending
+    if action.type == ActionType.RESPOND_ALLIANCE:
+        eff = get_effect(action)
+        rel.relation = clamp_int(rel.relation + eff.relation, -100, 100)
+        rel.pending_alliance_from = None
+        return
 
-        relation_deltas: List[RelationDelta] = []
-        relation_updates: Dict[int, int] = {}
+    # 3) Other actions: apply base effects scaled by intensity
+    eff = get_effect(action)
 
-        for action in actions:
-            # Only actions that target another country can affect relations
-            if action.target_id is None:
-                continue
+    # Relation change
+    rel.relation = clamp_int(rel.relation + eff.relation * action.intensity, -100, 100)
 
-            a, b = sorted([action.actor_id, action.target_id])
-            relation_row = pair_to_relation.get((a, b))
+    # Country metric deltas (simple symmetric application for demo)
+    actor = find_country(world, action.actor_id)
+    target = find_country(world, action.target_id)
+    if actor is None or target is None:
+        return
 
-            # If relation doesn't exist, the DB layer should create it via /relations
-            # For hackathon simplicity, we skip if missing.
-            if relation_row is None:
-                continue
-
-            old_val = relation_row.value
-            delta = relation_delta_for_action(action)
-            new_val = clamp_relation(old_val + delta)
-
-            # If no actual change, skip
-            if new_val == old_val:
-                continue
-
-            # Update in-memory relation row
-            relation_row.value = new_val
-
-            # Collect delta for UI/clients
-            relation_deltas.append(
-                RelationDelta(
-                    relation_id=relation_row.id,
-                    country_1=relation_row.country_1,
-                    country_2=relation_row.country_2,
-                    old_value=old_val,
-                    new_value=new_val,
-                    label=relation_label(new_val),
-                )
-            )
-
-            # Record update for DB persistence
-            relation_updates[relation_row.id] = new_val
-
-        turn_delta = TurnDelta(
-            turn=turn,
-            actions=[a.model_dump() for a in actions],
-            relation_deltas=relation_deltas,
-            message="Turn applied",
-        )
-
-        return turn_delta, relation_updates
+    for entity in (actor, target):
+        entity.economy = clamp_int(entity.economy + eff.economy * action.intensity, 0, 100)
+        entity.social = clamp_int(entity.social + eff.social * action.intensity, 0, 100)
+        entity.demography = clamp_int(entity.demography + eff.demography * action.intensity, 0, 100)
+        entity.technology = clamp_int(entity.technology + eff.technology * action.intensity, 0, 100)
+        entity.military_power = clamp_int(entity.military_power + eff.military_power * action.intensity, 0, 100)

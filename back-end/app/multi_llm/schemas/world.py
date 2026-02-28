@@ -34,17 +34,12 @@ class CountryState(BaseModel):
 
 
 class RelationState(BaseModel):
-    """
-    Snapshot of a relationship (mirrors DB columns in src/models/Relationship).
-    """
     id: int
     country_1: str
     country_2: str
     relation: int = Field(ge=-100, le=100)
 
-    def label(self) -> RelationLabel:
-        return relation_label(self.relation)
-
+    pending_alliance_from: str | None = None
 
 class WorldState(BaseModel):
     """

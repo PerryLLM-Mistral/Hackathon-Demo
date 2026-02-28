@@ -4,38 +4,29 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ActionType(str, Enum):
-    """
-    Enumeration of all diplomatic actions that an agent can perform.
-    These represent the only allowed tools in the system.
-    """
     DECLARE_WAR = "DECLARE_WAR"
-    ALLY = "ALLY"
+    PROPOSE_ALLIANCE = "PROPOSE_ALLIANCE"
+    RESPOND_ALLIANCE = "RESPOND_ALLIANCE"
     TRADE = "TRADE"
     SANCTION = "SANCTION"
-    MESSAGE = "MESSAGE"
     PASS = "PASS"
 
 
 class Action(BaseModel):
-    """
-    Structured diplomatic action proposed by an agent.
-    """
-
-    actor_id: str  # e.g., "USA"
+    actor_id: str
     type: ActionType
-    target_id: Optional[str] = None  # e.g., "CHI"
+    target_id: Optional[str] = None
     reason: str
     intensity: int = Field(default=1, ge=1, le=3)
 
+    accept: Optional[bool] = None
+
     @model_validator(mode="after")
     def validate_action(self):
-        """
-        Ensures logical consistency between action type and target.
-        """
-
         requires_target = self.type in {
             ActionType.DECLARE_WAR,
-            ActionType.ALLY,
+            ActionType.PROPOSE_ALLIANCE,
+            ActionType.RESPOND_ALLIANCE,
             ActionType.TRADE,
             ActionType.SANCTION,
         }
@@ -43,8 +34,14 @@ class Action(BaseModel):
         if requires_target and self.target_id is None:
             raise ValueError(f"{self.type} requires a target_id")
 
-        if self.type in {ActionType.PASS, ActionType.MESSAGE} and self.target_id is not None:
+        if self.type == ActionType.PASS and self.target_id is not None:
             raise ValueError(f"{self.type} should not include a target_id")
+
+        if self.type == ActionType.RESPOND_ALLIANCE and self.accept is None:
+            raise ValueError("RESPOND_ALLIANCE requires accept=true/false")
+
+        if self.type != ActionType.RESPOND_ALLIANCE and self.accept is not None:
+            raise ValueError("accept is only valid for RESPOND_ALLIANCE")
 
         if self.target_id == self.actor_id:
             raise ValueError("A country cannot target itself")
