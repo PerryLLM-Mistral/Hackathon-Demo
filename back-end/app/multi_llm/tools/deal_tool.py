@@ -1,27 +1,27 @@
-# tools/deal_tool.py
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, AliasChoices
+from app.multi_llm.schemas.world import WorldState
 
-class DealTool:
-    name = "deal_action"
-    description = "Negotiate a trade or strategic deal."
+TOOL_NAME = "TRADE"
+TOOL_DESCRIPTION = "Propose trade. Improves relations moderately."
 
-    class Schema(BaseModel):
-        source_country: str
-        target_country: str
-        deal_value: int = Field(..., gt=0)
-        deal_type: str = Field(..., description="Type of deal, e.g., trade, military, energy, technology")
-        justification: Optional[str] = None
+class TradeArgs(BaseModel):
+    target_id: str = Field(
+        validation_alias=AliasChoices("target_id", "country", "target"),
+        min_length=3,
+        max_length=3
+    )
+    intensity: int = Field(default=1, ge=1, le=3)
+    reason: str = Field(
+        validation_alias=AliasChoices("reason", "because", "motivation"),
+        min_length=1,
+        max_length=280
+    )
 
-    def generate_output(self, action: Schema) -> dict:
-        """
-        Generates the output that the agent returns.
-        """
-        return {
-            "action_type": "deal",
-            "source_country": action.source_country,
-            "target_country": action.target_country,
-            "deal_value": action.deal_value,
-            "deal_type": action.deal_type,
-            "justification": action.justification or "No justification provided."
-        }
+def validate(args: TradeArgs, world: WorldState, actor_id: str) -> None:
+    ids = {c.id for c in world.countries}
+    if actor_id not in ids:
+        raise ValueError("Invalid actor_id")
+    if args.target_id not in ids:
+        raise ValueError("Invalid target_id")
+    if args.target_id == actor_id:
+        raise ValueError("Cannot trade with self")
