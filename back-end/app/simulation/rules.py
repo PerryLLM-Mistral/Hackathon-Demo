@@ -1,32 +1,45 @@
+# app/simulation/rules.py
+
 from __future__ import annotations
 
 from app.multi_llm.schemas.action import Action, ActionType
 
 
 def clamp_relation(value: int) -> int:
-    """
-    Clamp relation value to [-100, 100].
-    """
     return max(-100, min(100, value))
+
+
+def clamp_metric(value: int) -> int:
+    return max(0, min(100, value))
 
 
 def relation_delta_for_action(action: Action) -> int:
     """
-    Returns how much to change relation.value based on ActionType and intensity.
+    Central place to define relation deltas.
 
-    This is the *only* place you tune diplomacy math.
+    IMPORTANT:
+    - PROPOSE_ALLIANCE: 0 (it only creates pending state)
+    - RESPOND_ALLIANCE: +/-20 independent of intensity
+    - SANCTION: -50 * intensity
+    - DECLARE_WAR: -100 (directly clamps to -100 in engine)
+    - TRADE: +15 * intensity
     """
-    base = action.intensity
+    if action.type == ActionType.PROPOSE_ALLIANCE:
+        return 0
 
-    # You can tune these coefficients anytime without touching agents.
-    if action.type == ActionType.DECLARE_WAR:
-        return -35 * base
-    if action.type == ActionType.ALLY:
-        return +30 * base
-    if action.type == ActionType.TRADE:
-        return +15 * base
+    if action.type == ActionType.RESPOND_ALLIANCE:
+        accepted = bool(getattr(action, "accept", False))
+        return +20 if accepted else -20
+
     if action.type == ActionType.SANCTION:
-        return -20 * base
+        return -50 * action.intensity
 
-    # MESSAGE and PASS do not change relations
+    if action.type == ActionType.DECLARE_WAR:
+        # relation will be clamped to -100 anyway
+        return -100
+
+    if action.type == ActionType.TRADE:
+        return +15 * action.intensity
+
+    # PASS has no effect
     return 0
