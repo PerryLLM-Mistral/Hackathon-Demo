@@ -2,6 +2,7 @@
 
 import json
 import random
+import requests
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
@@ -120,6 +121,20 @@ class CountryAgent(BaseAgent):
             intensity=1,
         )
 
+    def _notify_bridge(self, payload: dict):
+        """
+        Helper to send event data to the FastAPI bridge.
+        """
+        try:
+            # We target localhost:8000 because it is the Docker mapped port
+            requests.post(
+                "http://localhost:8000/events/broadcast", 
+                json={"data": payload},
+                timeout=1
+            )
+        except Exception as e:
+            print(f"DEBUG [Bridge Error]: Could not send to browser. {e}")
+
     async def decide_llm(self, world: WorldState, provider: "MistralProvider") -> Action:
         world_payload = {
             "turn": world.turn,
@@ -161,12 +176,21 @@ class CountryAgent(BaseAgent):
         tool_call = await provider.complete_json(messages=messages, schema=ToolCall)
 
         if tool_call.tool not in TOOL_SPECS:
-            return Action(
+            action = Action(
                 actor_id=self.country_id,
                 type=ActionType.PASS,
                 reason="Unknown tool from model",
                 intensity=1,
             )
+        
+            # NOTIFY: if it fails, inform the frontend
+            self._notify_bridge({
+                "type": "AGENT_LOG",
+                "agent": self.country_id,
+                "message": f"Failed to execute action: unknown tool '{tool_call.tool}'"
+            })
+
+            return action
 
         args_model = TOOL_SPECS[tool_call.tool]["args_model"]
         validate_fn = TOOL_SPECS[tool_call.tool]["validate"]
@@ -177,17 +201,44 @@ class CountryAgent(BaseAgent):
             args = args_model.model_validate(normalized_args)
             validate_fn(args, world, self.country_id)
         except (ValidationError, ValueError) as exc:
-            return Action(
+            action = Action(
                 actor_id=self.country_id,
                 type=ActionType.PASS,
                 reason=f"Invalid tool arguments from model: {exc}",
                 intensity=1,
             )
 
-        return Action(
+            # NOTIFY: inform a mistake in the parameters
+            self._notify_bridge({
+                "type": "AGENT_LOG",
+                "agent": self.country_id,
+                "message": f"Invalid arguments for {tool_call.tool}. Passing turn."
+            })
+
+            return action
+
+        # Success path
+        target_id = getattr(args, "target_id", None)
+        reason = getattr(args, "reason", "No reason provided")
+        intensity = getattr(args, "intensity", 1)
+
+        final_action = Action(
             actor_id=self.country_id,
             type=ActionType(tool_call.tool),
-            target_id=getattr(args, "target_id", None),
-            reason=getattr(args, "reason", "No reason"),
-            intensity=getattr(args, "intensity", 1),
+            target_id=target_id,
+            reason=reason,
+            intensity=intensity,
         )
+
+        # NOTIFY: broadcast the successful action
+        self._notify_bridge({
+            "type": "AGENT_ACTION",
+            "agent": self.country_id,
+            "action_type": final_action.type.value,
+            "target": target_id,
+            "intensity": intensity,
+            "reason": reason,
+            "message": f"{self.country_id} performs {final_action.type.value} on {target_id or 'themselves'} (Intensity: {intensity})"
+        })
+
+        return final_action

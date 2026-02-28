@@ -1,12 +1,14 @@
 import asyncio
+import requests
 from dotenv import load_dotenv
+from typing import Optional
 
 from app.multi_llm.agents.registry import AGENTS
 from app.multi_llm.schemas.world import WorldState, CountryState, RelationState
 from app.multi_llm.llm.provider import MistralProvider
 
 
-def _find_relation(world: WorldState, a: str, b: str) -> RelationState | None:
+def _find_relation(world: WorldState, a: str, b: str) -> Optional[RelationState]:
     """Find a relation regardless of stored order (a,b) or (b,a)."""
     for r in world.relations:
         if (r.country_1 == a and r.country_2 == b) or (r.country_1 == b and r.country_2 == a):
@@ -80,11 +82,38 @@ async def main():
         world.turn = t
         print(f"\n=== TURN {t} ===")
 
-        # Option A: sequential (clearer logs, less API parallelism)
+        # NOTIFY TURN START: we tell the frontend that a new turn has begun
+        try:
+            requests.post("http://localhost:8000/events/broadcast", json={
+                "data": {
+                    "type": "TURN_START", 
+                    "turn": t,
+                    "message": f"Turn {t} has started"
+                }
+            })
+        except Exception as e:
+            print(f"DEBUG: Bridge not reachable at turn start: {e}")
+
+        # Sequential: clearer logs, less API parallelism
         for agent in AGENTS:
             action = await agent.decide_llm(world, provider)
             print(f"{agent.country_id} -> {action.model_dump()}")
             _apply_action_to_world(world, action)
+
+        # NOTIFY TURN END: send the current state of relations so the UI updates its map
+        try:
+            requests.post("http://localhost:8000/events/broadcast", json={
+                "data": {
+                    "type": "TURN_END",
+                    "turn": t,
+                    "relations": [
+                        {"id": r.id, "pair": f"{r.country_1}-{r.country_2}", "value": r.relation} 
+                        for r in world.relations
+                    ]
+                }
+            })
+        except Exception as e:
+            print(f"DEBUG: Bridge not reachable at turn end: {e}")
 
         # Print resulting relations after the turn
         print("Relations after turn:")
