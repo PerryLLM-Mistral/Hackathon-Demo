@@ -47,6 +47,8 @@ class CountryAgent(BaseAgent):
         # exploration knobs (tune)
         self.epsilon_bypass_llm = 0.12      # 12% of the time: use heuristic even if LLM available
         self.conflict_explore_prob = 0.18   # 18% of normal turns: bias towards SANCTION/WAR
+        self.min_econ_for_alliance = 30    # Do not accept poor alliates
+        self.min_social_for_war = 40          # A country with bad social status does not want wars
 
     def _load_prompt(self, path: str) -> str:
         return Path(path).read_text(encoding="utf-8")
@@ -84,6 +86,10 @@ class CountryAgent(BaseAgent):
             if c.id == cid:
                 return c
         return None
+
+    def _get_stat(self, world: WorldState, cid: str, stat: str) -> int:
+        c = next((x for x in world.countries if x.id == cid), None)
+        return int(getattr(c, stat, 0) or 0) if c else 0
 
     def _military(self, world: WorldState, cid: str) -> int:
         c = self._get_country(world, cid)
@@ -164,14 +170,26 @@ class CountryAgent(BaseAgent):
         if pending:
             requester = pending[0]
             rel = self._get_relation(world, requester)
-            p_accept = 1.0 / (1.0 + exp(-(rel / 18.0)))
-            accept = self._rng.random() < p_accept
+
+            # National interest
+            req_econ = self._get_stat(world, requester, "economy")
+            my_social = self._get_stat(world, self.country_id, "social")
+
+            # If the country is poor (< 30) or if the citizens are not satisfied (social < 20), reject
+            if req_econ < 30 or my_social < 20:
+                accept = False
+                reason = "Target economy unstable or domestic social crisis."
+            else:
+                p_accept = 1.0 / (1.0 + exp(-(rel / 18.0)))
+                accept = self._rng.random() < p_accept
+                reason = "Strategic alliance decision based on relations."
+
             action = Action(
                 actor_id=self.country_id,
                 type=ActionType.RESPOND_ALLIANCE,
                 target_id=requester,
                 accept=accept,
-                reason=("Accept alliance proposal" if accept else "Reject alliance proposal"),
+                reason=reason,
                 intensity=1,
             )
             self._last_action = (action.type, action.target_id, world.turn)
@@ -211,6 +229,10 @@ class CountryAgent(BaseAgent):
         # war: grows when hostility exists, earlier if strong military advantage
         w_war = 0.05 + max(0.0, (-rel - 15) / 35.0)     # grows from rel <= -15
 
+        my_econ = self._get_stat(world, self.country_id, "economy")
+        t_econ = self._get_stat(world, target_id, "economy")
+        mil_diff = self._military(world, self.country_id) - self._military(world, target_id)
+
         if mil_adv >= 10:
             w_war += 0.12
             w_sanction += 0.05
@@ -220,6 +242,15 @@ class CountryAgent(BaseAgent):
             w_war += 0.10
             w_trade *= 0.70
             w_alliance *= 0.70
+
+        if my_econ < 30:
+            w_trade += 0.5
+            w_war = 0.01     # Not enough money for war
+
+        # If the objective is military strong, low war probability because of fear
+        if mil_diff < -20:
+            w_war *= 0.1
+            w_sanction += 0.2
 
         candidates: list[tuple[ActionType, float]] = [
             (ActionType.TRADE, w_trade),
@@ -356,11 +387,16 @@ class CountryAgent(BaseAgent):
             system_prompt = (
                 f"You are {self.country_name} ({self.country_id}).\n"
                 "Choose exactly ONE tool that best serves your interests this turn.\n"
+                "CRITICAL: Your 'reason' must be a unique, context-aware sentence. "
+                "Do not use generic phrases. Reference your current economy, military power or specific hostility levels in your explanation.\n"
                 "Rules:\n"
                 "- Do NOT repeat the same tool in consecutive turns.\n"
                 "- Only choose DECLARE_WAR if relation <= -30.\n"
                 "- Consider SANCTION if relation <= -10 and war is not justified.\n"
                 "- If a relation already has pending_alliance_from set, do NOT choose PROPOSE_ALLIANCE for that same pair.\n"
+                "- Do NOT ally with 'poor' countries (economy < 30).\n"
+                "- If your economy is low, prioritize TRADE to recover funds.\n"
+                "- Avoid DECLARE_WAR if the target has much higher military_power than you.\n"
                 f"- Exploration mode: {explore_conflict} (if true, prefer SANCTION/DECLARE_WAR sometimes).\n\n"
                 f"(Decision nonce: {nonce})\n\n"
                 f"{self.prompt_text}\n\n"
