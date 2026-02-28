@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import re
 import json
 import os
+import re
 from typing import Dict, List, Optional, Type
 
 from mistralai import Mistral
 from pydantic import BaseModel, ValidationError
+
 
 class MistralProvider:
     """
@@ -41,24 +42,33 @@ class MistralProvider:
         start = s.find("{")
         end = s.rfind("}")
         if start != -1 and end != -1 and end > start:
-            return s[start:end + 1].strip()
+            return s[start : end + 1].strip()
 
         return s
 
-    async def complete_json(self, messages: List[Dict[str, str]], schema: Type[BaseModel], temperature: float = 0.2) -> BaseModel:
+    async def complete_json(
+        self,
+        messages: List[Dict[str, str]],
+        schema: Type[BaseModel],
+        temperature: float = 0.2,
+        top_p: float = 0.9,
+    ) -> BaseModel:
         """
         Ask model for strict JSON, then validate with Pydantic schema.
         """
-        messages = messages + [{
-            "role": "system",
-            "content": "Return ONLY valid JSON. No markdown. No extra keys.",
-        }]
+        messages = messages + [
+            {
+                "role": "system",
+                "content": "Return ONLY valid JSON. No markdown. No extra keys.",
+            }
+        ]
 
         async with Mistral(api_key=self.api_key) as client:
             res = await client.chat.complete_async(
                 model=self.model,
                 messages=messages,
                 temperature=temperature,
+                top_p=top_p,
             )
 
         raw = res.choices[0].message.content.strip()
@@ -67,7 +77,9 @@ class MistralProvider:
         try:
             data = json.loads(json_str)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Model did not return valid JSON.\nRaw:\n{raw}\n\nExtracted:\n{json_str}") from e
+            raise ValueError(
+                f"Model did not return valid JSON.\nRaw:\n{raw}\n\nExtracted:\n{json_str}"
+            ) from e
 
         try:
             return schema.model_validate(data)
