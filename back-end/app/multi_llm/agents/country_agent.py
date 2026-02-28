@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
-import random
+import secrets
 import requests
 from math import exp
 from pathlib import Path
@@ -13,7 +13,7 @@ from app.multi_llm.agents.base import BaseAgent
 from app.multi_llm.schemas.action import Action, ActionType
 from app.multi_llm.schemas.tool_call import ToolCall
 from app.multi_llm.schemas.world import WorldState
-from app.multi_llm.tools.registry import TOOL_SPECS, tools_prompt_block
+from app.multi_llm.tools.registry import TOOL_SPECS
 
 if TYPE_CHECKING:
     from app.multi_llm.llm.provider import MistralProvider
@@ -23,35 +23,39 @@ class CountryAgent(BaseAgent):
     """
     Agent for a single country.
 
-    - decide: heuristic fallback (no model call), stochastic + constraints
-    - decide_llm: model-based tool decision with constraints:
-        * MUST RESPOND to pending alliance proposals
-        * dynamic tool restrictions (cooldowns / no-spam)
-        * nonce in prompt to reduce repeated outputs
-        * higher temperature for diversity
+    - decide: heuristic fallback (stochastic)
+    - decide_llm: tool-based LLM decision + exploration:
+        * MUST RESPOND to pending alliances
+        * epsilon-greedy: sometimes bypass LLM to avoid deterministic loops
+        * sometimes "conflict explore" to force SANCTION/WAR consideration
+        * nonce embedded in WORLD payload to reduce repeated outputs
 
-    Additionally:
+    Also:
     - Notifies FastAPI bridge (/events/broadcast) with AGENT_LOG / AGENT_ACTION events.
     """
 
     def __init__(self, country_id: str, country_name: str, prompt_path: Optional[str] = None):
         super().__init__(country_id=country_id, country_name=country_name)
         self.prompt_text = self._load_prompt(prompt_path) if prompt_path else ""
-        # in-memory cooldown
+
+        # IMPORTANT: use independent RNG that ignores random.seed(...) in debug scripts
+        self._rng = secrets.SystemRandom()
+
+        # last action cooldown
         self._last_action: Optional[tuple[ActionType, Optional[str], int]] = None
+
+        # exploration knobs (tune)
+        self.epsilon_bypass_llm = 0.12      # 12% of the time: use heuristic even if LLM available
+        self.conflict_explore_prob = 0.18   # 18% of normal turns: bias towards SANCTION/WAR
 
     def _load_prompt(self, path: str) -> str:
         return Path(path).read_text(encoding="utf-8")
 
     # -------------------------
-    # Bridge notifications (FROM v1)
+    # Bridge notifications
     # -------------------------
     def _notify_bridge(self, payload: dict):
-        """
-        Helper to send event data to the FastAPI bridge.
-        """
         try:
-            # We target localhost:8000 because it is the Docker mapped port
             requests.post(
                 "http://127.0.0.1:8000/events/broadcast",
                 json={"data": payload},
@@ -75,12 +79,17 @@ class CountryAgent(BaseAgent):
         rel = self._get_relation_state(world, other_id)
         return int(rel.relation) if rel is not None else 0
 
+    def _get_country(self, world: WorldState, cid: str):
+        for c in world.countries:
+            if c.id == cid:
+                return c
+        return None
+
+    def _military(self, world: WorldState, cid: str) -> int:
+        c = self._get_country(world, cid)
+        return int(getattr(c, "military_power", 0) or 0) if c else 0
+
     def _pending_requesters_for_me(self, world: WorldState) -> list[str]:
-        """
-        A pending alliance directed to THIS agent happens when:
-        - relation involves self.country_id
-        - relation.pending_alliance_from equals the other side of that relation
-        """
         reqs: list[str] = []
         for r in world.relations:
             requester = getattr(r, "pending_alliance_from", None)
@@ -88,17 +97,12 @@ class CountryAgent(BaseAgent):
                 continue
             if self.country_id not in (r.country_1, r.country_2):
                 continue
-
             other = r.country_2 if r.country_1 == self.country_id else r.country_1
             if requester == other:
                 reqs.append(requester)
         return reqs
 
     def _choose_target_stochastic(self, world: WorldState) -> Optional[str]:
-        """
-        Stochastic target choice: prefer extreme relations slightly + noise.
-        Avoid deterministic "always pick same target".
-        """
         targets = [c.id for c in world.countries if c.id != self.country_id]
         if not targets:
             return None
@@ -106,11 +110,12 @@ class CountryAgent(BaseAgent):
         weights = []
         for tid in targets:
             rel = self._get_relation(world, tid)
-            w = 0.8 + abs(rel) / 70.0 + random.uniform(-0.15, 0.15)
+            # prefer extremes a bit + noise
+            w = 0.8 + abs(rel) / 60.0 + self._rng.uniform(-0.20, 0.20)
             weights.append(max(0.01, w))
 
         total = sum(weights)
-        r = random.random() * total
+        r = self._rng.random() * total
         acc = 0.0
         for tid, w in zip(targets, weights):
             acc += w
@@ -119,10 +124,6 @@ class CountryAgent(BaseAgent):
         return targets[-1]
 
     def _tools_block_for(self, tool_specs: dict[str, dict]) -> str:
-        """
-        Build a tools block that only lists the currently allowed tools.
-        This prevents the model from picking a disallowed option and causing PASS.
-        """
         lines = ["Available tools:"]
         if "DECLARE_WAR" in tool_specs:
             lines.append('- DECLARE_WAR: {"target_id": "AAA", "intensity": 1-3, "reason": "..."}')
@@ -136,7 +137,6 @@ class CountryAgent(BaseAgent):
             lines.append('- SANCTION: {"target_id": "AAA", "intensity": 1-3, "reason": "..."}')
         if "PASS" in tool_specs:
             lines.append('- PASS: {"reason": "..."}')
-
         lines.append("IMPORTANT: Use the key 'target_id'.")
         return "\n".join(lines) + "\n"
 
@@ -146,19 +146,13 @@ class CountryAgent(BaseAgent):
     def _normalize_tool_arguments(self, raw_arguments: object, tool_name: str) -> dict:
         if not isinstance(raw_arguments, dict):
             return {}
-
         args = dict(raw_arguments)
-
         if "target_id" not in args and "target" in args:
             args["target_id"] = args["target"]
-
         if "reason" not in args or not args.get("reason"):
             args["reason"] = f"{tool_name} selected by model"
-
-        # intensity used by war/trade/propose; harmless default elsewhere
         if "intensity" not in args:
             args["intensity"] = 1
-
         return args
 
     # -------------------------
@@ -170,8 +164,8 @@ class CountryAgent(BaseAgent):
         if pending:
             requester = pending[0]
             rel = self._get_relation(world, requester)
-            p_accept = 1.0 / (1.0 + exp(-(rel / 20.0)))
-            accept = random.random() < p_accept
+            p_accept = 1.0 / (1.0 + exp(-(rel / 18.0)))
+            accept = self._rng.random() < p_accept
             action = Action(
                 actor_id=self.country_id,
                 type=ActionType.RESPOND_ALLIANCE,
@@ -181,86 +175,70 @@ class CountryAgent(BaseAgent):
                 intensity=1,
             )
             self._last_action = (action.type, action.target_id, world.turn)
-
-            # NOTIFY (v1 behavior, adapted)
-            self._notify_bridge(
-                {
-                    "type": "AGENT_ACTION",
-                    "agent": self.country_id,
-                    "action_type": action.type.value,
-                    "target": action.target_id,
-                    "intensity": action.intensity,
-                    "reason": action.reason,
-                    "accept": action.accept,
-                    "message": f"{self.country_id} performs {action.type.value} on {action.target_id} (Accept: {action.accept})",
-                }
-            )
+            self._notify_bridge(self._action_payload(action))
             return action
 
-        # stochastic pass
-        if random.random() < 0.08:
+        # small stochastic pass
+        if self._rng.random() < 0.05:
             action = Action(actor_id=self.country_id, type=ActionType.PASS, reason="Strategic pause", intensity=1)
             self._last_action = (action.type, action.target_id, world.turn)
-
-            # NOTIFY
-            self._notify_bridge(
-                {
-                    "type": "AGENT_ACTION",
-                    "agent": self.country_id,
-                    "action_type": action.type.value,
-                    "target": None,
-                    "intensity": action.intensity,
-                    "reason": action.reason,
-                    "accept": None,
-                    "message": f"{self.country_id} performs PASS",
-                }
-            )
+            self._notify_bridge(self._action_payload(action))
             return action
 
         target_id = self._choose_target_stochastic(world)
         if target_id is None:
             action = Action(actor_id=self.country_id, type=ActionType.PASS, reason="No targets", intensity=1)
             self._last_action = (action.type, action.target_id, world.turn)
-
-            # NOTIFY
-            self._notify_bridge(
-                {
-                    "type": "AGENT_ACTION",
-                    "agent": self.country_id,
-                    "action_type": action.type.value,
-                    "target": None,
-                    "intensity": action.intensity,
-                    "reason": action.reason,
-                    "accept": None,
-                    "message": f"{self.country_id} performs PASS (no targets)",
-                }
-            )
+            self._notify_bridge(self._action_payload(action))
             return action
 
         rel = self._get_relation(world, target_id)
         rel_state = self._get_relation_state(world, target_id)
         has_pending = bool(getattr(rel_state, "pending_alliance_from", None)) if rel_state else False
 
-        # weighted choice among actions
+        my_mil = self._military(world, self.country_id)
+        t_mil = self._military(world, target_id)
+        mil_adv = my_mil - t_mil
+
+        explore_conflict = self._rng.random() < self.conflict_explore_prob
+
+        # weights (cooperation still likely, but conflict is reachable from neutral)
+        w_trade = 0.50 + (0.20 if rel >= -10 else 0.0)
+        w_alliance = 0.10 + (0.25 if rel >= 5 else 0.0)
+
+        # sanctions: start around mild negativity
+        w_sanction = 0.12 + max(0.0, (-rel) / 35.0)     # grows from 0 -> 1 as rel ~ -35
+        # war: grows when hostility exists, earlier if strong military advantage
+        w_war = 0.05 + max(0.0, (-rel - 15) / 35.0)     # grows from rel <= -15
+
+        if mil_adv >= 10:
+            w_war += 0.12
+            w_sanction += 0.05
+
+        if explore_conflict:
+            w_sanction += 0.18
+            w_war += 0.10
+            w_trade *= 0.70
+            w_alliance *= 0.70
+
         candidates: list[tuple[ActionType, float]] = [
-            (ActionType.TRADE, 0.6 + (0.4 if rel >= -20 else 0.0)),
-            (ActionType.SANCTION, 0.2 + max(0, -rel) / 120.0),
-            (ActionType.DECLARE_WAR, 0.05 + (0.35 if rel <= -50 else 0.0)),
-            (ActionType.PROPOSE_ALLIANCE, 0.2 + (0.3 if rel >= -10 else 0.0)),
+            (ActionType.TRADE, w_trade),
+            (ActionType.PROPOSE_ALLIANCE, w_alliance),
+            (ActionType.SANCTION, w_sanction),
+            (ActionType.DECLARE_WAR, w_war),
         ]
 
         if has_pending:
-            # cannot propose if already pending in that pair
             candidates = [(a, w) for a, w in candidates if a != ActionType.PROPOSE_ALLIANCE]
 
-        # cooldown: reduce probability of repeating exact same (type,target)
+        # cooldown: penalize repeating same (type,target) immediately
         if self._last_action is not None:
             last_type, last_target, last_turn = self._last_action
             if last_turn == world.turn - 1 and last_target == target_id:
-                candidates = [(a, w * (0.2 if a == last_type else 1.0)) for a, w in candidates]
+                candidates = [(a, w * (0.12 if a == last_type else 1.0)) for a, w in candidates]
 
         total = sum(w for _, w in candidates)
-        r = random.random() * total
+        r = self._rng.random() * total
         acc = 0.0
         chosen = candidates[-1][0]
         for a, w in candidates:
@@ -270,9 +248,11 @@ class CountryAgent(BaseAgent):
                 break
 
         if chosen == ActionType.DECLARE_WAR:
-            intensity = 2 if random.random() < 0.6 else 3
-        elif chosen in {ActionType.SANCTION, ActionType.TRADE, ActionType.PROPOSE_ALLIANCE}:
-            intensity = 1 if random.random() < 0.65 else 2
+            intensity = 3 if (mil_adv >= 10 and self._rng.random() < 0.7) else 2
+        elif chosen == ActionType.SANCTION:
+            intensity = 2 if self._rng.random() < 0.65 else 1
+        elif chosen in {ActionType.TRADE, ActionType.PROPOSE_ALLIANCE}:
+            intensity = 1 if self._rng.random() < 0.75 else 2
         else:
             intensity = 1
 
@@ -283,38 +263,45 @@ class CountryAgent(BaseAgent):
             reason=f"Fallback stochastic policy: {chosen.value}",
             intensity=intensity,
         )
-
         self._last_action = (action.type, action.target_id, world.turn)
-
-        # NOTIFY
-        self._notify_bridge(
-            {
-                "type": "AGENT_ACTION",
-                "agent": self.country_id,
-                "action_type": action.type.value,
-                "target": action.target_id,
-                "intensity": action.intensity,
-                "reason": action.reason,
-                "accept": getattr(action, "accept", None),
-                "message": f"{self.country_id} performs {action.type.value} on {action.target_id} (Intensity: {action.intensity})",
-            }
-        )
-
+        self._notify_bridge(self._action_payload(action))
         return action
+
+    def _action_payload(self, action: Action) -> dict:
+        return {
+            "type": "AGENT_ACTION",
+            "agent": self.country_id,
+            "action_type": action.type.value,
+            "target": getattr(action, "target_id", None),
+            "intensity": getattr(action, "intensity", 1),
+            "reason": getattr(action, "reason", ""),
+            "accept": getattr(action, "accept", None),
+            "message": f"{self.country_id} performs {action.type.value} on {getattr(action, 'target_id', None) or 'N/A'}",
+        }
 
     # -------------------------
     # LLM tool-based decision
     # -------------------------
     async def decide_llm(self, world: WorldState, provider: "MistralProvider") -> Action:
-        # MUST RESPOND detection
         pending_requesters = self._pending_requesters_for_me(world)
         forced_mode = bool(pending_requesters)
         forced_requester = pending_requesters[0] if forced_mode else None
 
-        # payload includes pending_alliance_from so model can see it
+        # epsilon-greedy bypass (but never bypass forced respond)
+        if not forced_mode and self._rng.random() < self.epsilon_bypass_llm:
+            action = await self.decide(world)
+            self._notify_bridge(
+                {"type": "AGENT_LOG", "agent": self.country_id, "message": "Bypassed LLM (epsilon-greedy)."}
+            )
+            return action
+
+        nonce = self._rng.randint(1, 1_000_000)
+        payload_nonce = self._rng.randint(1, 1_000_000)
+
         world_payload = {
             "turn": world.turn,
             "self": self.country_id,
+            "nonce": payload_nonce,  # IMPORTANT: variation inside WORLD payload
             "countries": [
                 {"id": c.id, "name": c.name, "economy": c.economy, "military_power": c.military_power}
                 for c in world.countries
@@ -330,15 +317,14 @@ class CountryAgent(BaseAgent):
             ],
         }
 
-        # Dynamic tool restriction
-        nonce = random.randint(1, 1_000_000)
+        # occasionally "conflict explore" by restricting tools (only in normal mode)
+        explore_conflict = (not forced_mode) and (self._rng.random() < self.conflict_explore_prob)
 
         if forced_mode:
-            allowed_tools = {"RESPOND_ALLIANCE"}
-            tool_specs = {k: v for k, v in TOOL_SPECS.items() if k in allowed_tools}
+            tool_specs = {k: v for k, v in TOOL_SPECS.items() if k == "RESPOND_ALLIANCE"}
             tools_block = self._tools_block_for(tool_specs)
-
             rel_score = self._get_relation(world, forced_requester)
+
             system_prompt = (
                 f"You are {self.country_name} ({self.country_id}).\n"
                 f"You have a PENDING alliance proposal from {forced_requester}.\n"
@@ -347,26 +333,22 @@ class CountryAgent(BaseAgent):
                 f"(Decision nonce: {nonce})\n\n"
                 f"{self.prompt_text}\n\n"
                 f"{tools_block}\n"
-                "Output JSON with this schema:\n"
-                '{ "tool": "RESPOND_ALLIANCE", "arguments": { ... } }\n'
+                'Output JSON: { "tool": "RESPOND_ALLIANCE", "arguments": { ... } }\n'
             )
             temperature = 0.6
+            top_p = 0.9
         else:
             allowed = set(TOOL_SPECS.keys())
 
-            # cooldown: avoid exact repeat tool from previous turn (regardless of target)
-            last = getattr(self, "_last_action", None)
-            if last is not None:
-                last_type, last_target, last_turn = last
+            # cooldown: avoid same tool consecutive turn
+            if self._last_action is not None:
+                last_type, _, last_turn = self._last_action
                 if last_turn == world.turn - 1:
                     allowed.discard(last_type.value)
 
-            # anti-war-loop: if already extremely hostile somewhere, often remove DECLARE_WAR
-            very_bad_exists = any(
-                r.relation <= -90 for r in world.relations if self.country_id in (r.country_1, r.country_2)
-            )
-            if very_bad_exists and random.random() < 0.7:
-                allowed.discard("DECLARE_WAR")
+            # conflict exploration: sometimes focus the model on sanction/war
+            if explore_conflict:
+                allowed = allowed.intersection({"SANCTION", "DECLARE_WAR", "TRADE", "PASS"})
 
             tool_specs = {k: v for k, v in TOOL_SPECS.items() if k in allowed}
             tools_block = self._tools_block_for(tool_specs)
@@ -376,28 +358,33 @@ class CountryAgent(BaseAgent):
                 "Choose exactly ONE tool that best serves your interests this turn.\n"
                 "Rules:\n"
                 "- Do NOT repeat the same tool in consecutive turns.\n"
-                "- Do NOT choose DECLARE_WAR against a country if relation <= -80.\n"
-                "- If a relation already has pending_alliance_from set, do NOT choose PROPOSE_ALLIANCE for that same pair.\n\n"
+                "- Only choose DECLARE_WAR if relation <= -30.\n"
+                "- Consider SANCTION if relation <= -10 and war is not justified.\n"
+                "- If a relation already has pending_alliance_from set, do NOT choose PROPOSE_ALLIANCE for that same pair.\n"
+                f"- Exploration mode: {explore_conflict} (if true, prefer SANCTION/DECLARE_WAR sometimes).\n\n"
                 f"(Decision nonce: {nonce})\n\n"
                 f"{self.prompt_text}\n\n"
                 f"{tools_block}\n"
-                "Output JSON with this schema:\n"
-                '{ "tool": "DECLARE_WAR|PROPOSE_ALLIANCE|RESPOND_ALLIANCE|TRADE|SANCTION|PASS", "arguments": { ... } }\n'
+                'Output JSON: { "tool": "DECLARE_WAR|PROPOSE_ALLIANCE|RESPOND_ALLIANCE|TRADE|SANCTION|PASS", "arguments": { ... } }\n'
             )
-            temperature = 0.75
+            temperature = 0.95
+            top_p = 0.95
 
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": "WORLD:\n" + json.dumps(world_payload, indent=2)},
         ]
 
-        tool_call = await provider.complete_json(messages=messages, schema=ToolCall, temperature=temperature)
+        tool_call = await provider.complete_json(
+            messages=messages,
+            schema=ToolCall,
+            temperature=temperature,
+            top_p=top_p,
+        )
 
-        # If model picked a disallowed tool, fallback instead of PASS
+        # disallowed -> heuristic fallback
         if tool_call.tool not in tool_specs:
-            action = await self.decide(world)  # stochastic heuristic fallback
-
-            # NOTIFY
+            action = await self.decide(world)
             self._notify_bridge(
                 {
                     "type": "AGENT_LOG",
@@ -409,10 +396,8 @@ class CountryAgent(BaseAgent):
 
         args_model = tool_specs[tool_call.tool]["args_model"]
         validate_fn = tool_specs[tool_call.tool]["validate"]
-
         normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_call.tool)
 
-        # forced respond: ensure target_id is requester to prevent deadlock
         if forced_mode and tool_call.tool == "RESPOND_ALLIANCE":
             normalized_args.setdefault("target_id", forced_requester)
 
@@ -420,11 +405,10 @@ class CountryAgent(BaseAgent):
             args = args_model.model_validate(normalized_args)
             validate_fn(args, world, self.country_id)
         except (ValidationError, ValueError) as exc:
-            # forced fallback: always respond
             if forced_mode:
                 rel_score = self._get_relation(world, forced_requester)
-                p_accept = 1.0 / (1.0 + exp(-(rel_score / 20.0)))
-                accept = random.random() < p_accept
+                p_accept = 1.0 / (1.0 + exp(-(rel_score / 18.0)))
+                accept = self._rng.random() < p_accept
                 action = Action(
                     actor_id=self.country_id,
                     type=ActionType.RESPOND_ALLIANCE,
@@ -434,30 +418,12 @@ class CountryAgent(BaseAgent):
                     intensity=1,
                 )
                 self._last_action = (action.type, action.target_id, world.turn)
-
-                # NOTIFY
-                self._notify_bridge(
-                    {
-                        "type": "AGENT_ACTION",
-                        "agent": self.country_id,
-                        "action_type": action.type.value,
-                        "target": action.target_id,
-                        "intensity": action.intensity,
-                        "reason": action.reason,
-                        "accept": action.accept,
-                        "message": f"{self.country_id} performs RESPOND_ALLIANCE on {action.target_id} (fallback; Accept: {action.accept})",
-                    }
-                )
+                self._notify_bridge(self._action_payload(action))
                 return action
 
-            # normal fallback
             action = await self.decide(world)
             self._notify_bridge(
-                {
-                    "type": "AGENT_LOG",
-                    "agent": self.country_id,
-                    "message": f"Invalid tool arguments from model: {exc}. Using heuristic fallback '{action.type.value}'.",
-                }
+                {"type": "AGENT_LOG", "agent": self.country_id, "message": f"Invalid model args: {exc}. Fallback."}
             )
             return action
 
@@ -471,20 +437,5 @@ class CountryAgent(BaseAgent):
         )
 
         self._last_action = (action.type, action.target_id, world.turn)
-
-        # NOTIFY success (v1 behavior brought in)
-        self._notify_bridge(
-            {
-                "type": "AGENT_ACTION",
-                "agent": self.country_id,
-                "action_type": action.type.value,
-                "target": action.target_id,
-                "intensity": action.intensity,
-                "reason": action.reason,
-                "accept": action.accept,
-                "message": f"{self.country_id} performs {action.type.value} on {action.target_id or 'themselves'} "
-                f"(Intensity: {action.intensity}, Accept: {action.accept})",
-            }
-        )
-
+        self._notify_bridge(self._action_payload(action))
         return action
