@@ -52,7 +52,7 @@ async def run_turn(world: WorldState, agents: dict[str, CountryAgent], provider:
 
     # NOTIFY TURN START: we tell the frontend that a new turn has begun
     try:
-        requests.post("http://localhost:8000/events/broadcast", json={
+        requests.post("http://127.0.0.1:8000/events/broadcast", json={
             "data": {
                 "type": "TURN_START", 
                 "turn": t,
@@ -79,7 +79,7 @@ async def run_turn(world: WorldState, agents: dict[str, CountryAgent], provider:
 
     # NOTIFY TURN END: send the current state of relations so the UI updates its map
     try:
-        requests.post("http://localhost:8000/events/broadcast", json={
+        requests.post("http://127.0.0.1:8000/events/broadcast", json={
             "data": {
                 "type": "TURN_END",
                 "turn": t,

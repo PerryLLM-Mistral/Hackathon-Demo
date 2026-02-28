@@ -127,7 +127,7 @@ class CountryAgent(BaseAgent):
         try:
             # We target localhost:8000 because it is the Docker mapped port
             requests.post(
-                "http://localhost:8000/events/broadcast", 
+                "http://127.0.0.1:8000/events/broadcast", 
                 json={"data": payload},
                 timeout=1
             )

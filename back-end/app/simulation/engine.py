@@ -69,11 +69,13 @@ def apply_action(world: WorldState, action: Action) -> None:
             rel.pending_alliance_turn = world.turn
         return
 
-    # 2) Response: apply +/-20 and clear pending
+    # 2) Response: apply +/- relation delta and clear pending
     if action.type == ActionType.RESPOND_ALLIANCE:
         eff = get_effect(action)
         rel.relation = clamp_int(rel.relation + eff.relation, -100, 100)
         rel.pending_alliance_from = None
+        if hasattr(rel, "pending_alliance_turn"):
+            rel.pending_alliance_turn = None
         return
 
     # 3) Other actions: apply base effects scaled by intensity
@@ -93,4 +95,38 @@ def apply_action(world: WorldState, action: Action) -> None:
         entity.social = clamp_int(entity.social + eff.social * action.intensity, 0, 100)
         entity.demography = clamp_int(entity.demography + eff.demography * action.intensity, 0, 100)
         entity.technology = clamp_int(entity.technology + eff.technology * action.intensity, 0, 100)
-        entity.military_power = clamp_int(entity.military_power + eff.military_power * action.intensity, 0, 100)
+        entity.military_power = clamp_int(
+            entity.military_power + eff.military_power * action.intensity, 0, 100
+        )
+
+
+class SimulationEngine:
+    """
+    Small stateful wrapper used by the FastAPI routes.
+
+    - Keeps an in-memory WorldState
+    - get_state(): returns current state
+    - apply(actions): applies a batch and advances turn; returns a delta payload
+    """
+
+    def __init__(self, initial_world: WorldState | None = None):
+        # Adjust this default if your WorldState requires extra mandatory fields.
+        self._world: WorldState = initial_world or WorldState(turn=0, countries=[], relations=[])
+
+    def get_state(self) -> WorldState:
+        return self._world
+
+    def apply(self, actions: list[Action]):
+        # Apply actions (in-place mutations)
+        for action in actions:
+            apply_action(self._world, action)
+
+        # Advance turn after applying the batch
+        self._world.turn += 1
+
+        # Delta payload: for now return the full updated state.
+        # You can later return only changed entities if needed.
+        return {
+            "turn": self._world.turn,
+            "world": self._world,
+        }
