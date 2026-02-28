@@ -33,16 +33,18 @@ The project emphasizes architectural clarity and modularity rather than producti
 The system is organized into three layers:
 
 1. **Frontend (React + Maps)**
+   
    Visualizes the world state (countries, relations, events) and provides a UI to run turns / trigger actions.
 
-2. **API Layer (FastAPI)**
+3. **API Layer (FastAPI)**
+   
    Bridges the frontend with the backend logic, exposing endpoints to:
 
    * fetch world state
    * step the simulation (turn-based loop)
    * return updated state for visualization
 
-3. **Multi-LLM + Simulation Core**
+5. **Multi-LLM + Simulation Core**
 
    * **Multi-LLM layer**: country agents select structured actions using Mistral models
    * **Simulation engine**: applies deterministic rules and quantitative effects to update the world
@@ -64,4 +66,5 @@ The system is organized into three layers:
 * FastAPI
 * Pydantic
 * Asyncio
+
 * Mistral LLM API
