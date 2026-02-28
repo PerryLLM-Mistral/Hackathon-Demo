@@ -16,25 +16,53 @@
   width: 100%;
 
 .bot-chat
-  width: 20%;
+  width: 18%;
+  height: 87dvh;
   position: absolute;
   display: flex;
   flex-direction: column;
-  top: 94%;
+  overflow: hidden;
+  top: 0;
   left: 80%;
+  padding: 1%;
+
+.chat-box
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 3dvh;
+  border-bottom: 0.2vw solid $detail-color
+  padding: 0 5% 0 5%;
+
+  &::-webkit-scrollbar
+    width: 1.2vw;
+
+  &::-webkit-scrollbar-track
+    background: transparent;
+    border-radius: 6dvh;
+
+  &::-webkit-scrollbar-thumb
+    background: $detail-color;
+    border-radius: 3dvh;
+    border: 0.4vw solid $background-color;
+
+.chat-box .message
+  color: $chat-font-color;
+  font-family: $font-family;
+  font-size: $font-chat-size;
 
 .bot-chat button
-  width: 90%;
-  margin-left: 5%;
+  width: 100%;
   height: 4dvh;
-  border: none;
+  border: 2px solid $chat-font-color;
+  background: transparent;
   border-radius: 2dvh;
+  color: $chat-font-color;
   font-family: $font-family;
-  transition: transform 0.2s ease;
+  box-shadow: 0 0 3px 0 rgba(0,0,0,0.2);
+  transition: box-shadow 0.2s ease;
 
 .bot-chat button:hover
-  transform: scale(1.02);
+  box-shadow: 0 0 3px 0 rgba(0,0,0,0.2), inset 0 -3px 0 rgba(0,0,0,0.3);
 
 .bot-chat button:active
-  transform: scale(0.98);
-
+  box-shadow: inset 0 3px 0 rgba(0,0,0,0.3), 0 0 3px 0 rgba(0,0,0,0.2);

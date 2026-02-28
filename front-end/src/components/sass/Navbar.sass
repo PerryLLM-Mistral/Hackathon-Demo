@@ -8,18 +8,26 @@
   display: flex;
   justify-content: start;
   align-items: center;
-  gap: 8vw;
+  gap: 3vw;
   box-shadow: 0 -4px 4px 5px rgba(78, 130, 87, 0.2);
 
 .navbar-link
   color: $font-color;
+  height: 96%;
+  width: 5%;
+  background: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 2px solid white;
   font-size: $font-primary-size;
   font-weight: $font-primary-weight;
   text-decoration: none;
-  transition: color 0.2s ease, transform 0.2s ease;
+  transition: color 0.2s ease, transform 0.2s ease, background 0.4s ease;
 
 .navbar-link:hover
-  color: $font-hover-color;
+  background: $primary-color;
+  border-bottom: 2px solid $detail-color;
 
 .navbar-link:active
-  transform: scale(0.95);
+  transform: scale(0.98);

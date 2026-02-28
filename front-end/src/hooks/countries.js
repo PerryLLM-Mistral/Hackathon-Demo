@@ -4,9 +4,11 @@ const fetchCountries = async () => {
     try {
         const response = await fetch(BASE_URL)
         if (!response.ok) {
+            console.log("Error")
             throw new Error("Error while fetching countries")
         }
         const data = await response.json()
+        console.log(data)
         return data
     } catch (err) {
         throw new Error("Error fetching countries")
