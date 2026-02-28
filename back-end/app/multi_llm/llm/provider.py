@@ -45,7 +45,7 @@ class MistralProvider:
         if not self.api_key:
             raise RuntimeError("MISTRAL_API_KEY not found in environment")
 
-    async def complete_json(self, messages: List[Dict[str, str]], schema: Type[BaseModel], temperature: float = 0.2) -> BaseModel:
+    async def complete_json(self, messages: List[Dict[str, str]], schema: Type[BaseModel], temperature: float = 0.2, top_p: float = 0.9) -> BaseModel:
         """
         Ask model for strict JSON, then validate with Pydantic schema.
         """
@@ -56,10 +56,11 @@ class MistralProvider:
 
         async with Mistral(api_key=self.api_key) as client:
             res = await client.chat.complete_async(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-            )
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    top_p=top_p,
+                )
 
         raw = res.choices[0].message.content.strip()
         json_str = _extract_json(raw)
