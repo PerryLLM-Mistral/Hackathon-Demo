@@ -6,6 +6,26 @@ import { useEffect, useState, useRef } from 'react'
 const Map = () => {
     const [countries, setCountries] = useState([]);
     const [error, setError] = useState(null);
+    const [messages, setMessages] = useState([
+        {sender: "USA", content: "Hello!"},
+        {sender: "USA", content: "How are you?"},
+        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
+        {sender: "USA", content: "Hello!"},
+        {sender: "USA", content: "How are you?"},
+        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
+        {sender: "USA", content: "Hello!"},
+        {sender: "USA", content: "How are you?"},
+        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
+        {sender: "USA", content: "Hello!"},
+        {sender: "USA", content: "How are you?"},
+        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
+        {sender: "USA", content: "Hello!"},
+        {sender: "USA", content: "How are you?"},
+        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
+        {sender: "USA", content: "Hello!"},
+        {sender: "USA", content: "How are you?"},
+        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
+    ]);
     const hasFetched = useRef(false);
 
     useEffect(() => {
@@ -38,8 +58,13 @@ const Map = () => {
                 <WorldMapLeaflet countriesData={countries} connections={connections} />
             </section>
             <section className="bot-chat">
-                <div className="messages">
-                    
+                <div className="chat-box">
+                    {messages.length == 0 && 
+                        <p className="message">No messages generated</p>
+                    }
+                    {messages.map((msg, idx) =>(
+                        <p key={idx} className="message"><strong>{msg.sender} </strong>{msg.content}</p>
+                    ))}
                 </div>
                 <div className="simulation">
                     <button>Start Simulation</button>
