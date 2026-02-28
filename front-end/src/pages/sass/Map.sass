@@ -27,14 +27,15 @@
   width: 90%;
   margin-left: 5%;
   height: 4dvh;
-  border: none;
+  border: 2px solid $primary-color;
+  background: transparent;
+  color: $primary-color;
   border-radius: 2dvh;
   font-family: $font-family;
-  transition: transform 0.2s ease;
+  transition: box-shadow 0.2s ease;
 
 .bot-chat button:hover
-  transform: scale(1.02);
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3);
 
 .bot-chat button:active
-  transform: scale(0.98);
-
+  box-shadow: inset 0 3px 0 rgba(0,0,0,0.3)

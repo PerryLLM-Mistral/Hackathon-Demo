@@ -1,16 +1,24 @@
+import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Polyline, GeoJSON, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import worldGeo from '../assets/world.geo.json'
 
 const WorldMapLeaflet = ({ countriesData, connections }) => {
+    const [selectedCountries, setSelectedCountries] = useState([])   
     const countryStyle = {
         color: "#152242",
         weight: 3,
         fillColor: "#152242",
         fillOpacity: 0.2,
     }
-    
-    const selectedCountries = ["USA", "MEX", "BRA", "RUS"]
+
+    useEffect(() => {
+        const ids = countriesData.map((country) => country.id)
+        setSelectedCountries(ids)
+    }, [countriesData])
+
+    console.log(selectedCountries)
+
     const filteredGeo = {
         ...worldGeo,
             features: worldGeo.features.filter((feature) =>
@@ -19,15 +27,18 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
     };
 
     const onEachFeature = (feature, layer) => {
+        if (!countriesData) return;
         const name = feature.properties.name;
         const population = feature.properties.pop_est;
+        const country = countriesData.find((c) => c.id === feature.properties.iso_a3)
 
         const popupContent = `<strong>${name}</strong><br/>
                                 Population: ${population.toLocaleString()}<br/>
-                                Economy: 25<br/>
-                                Demography: 80<br/>
-                                Military: 20<br/>
-                                Technology: 60`
+                                Economy: ${country.economy}<br/>
+                                Demography: ${country.demography}<br/>
+                                Social: ${country.social}<br/>
+                                Military: ${country.military_power}<br/>
+                                Technology: ${country.technology}`
        
         layer.bindPopup(popupContent, {
             closeButton: false,
@@ -36,12 +47,12 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
             className: "custom-popup"
         });
 
-        layer.on("mouseover", (e) => {
+        layer.on("mouseover", function (e) {
             e.target.setStyle({ weight: 4, color: "#05aab3", fillColor: "#05aab3" }); 
             this.openPopup();
         });
 
-        layer.on("mouseout", (e) => {
+        layer.on("mouseout", function (e) {
             e.target.setStyle(countryStyle);
             this.closePopup();
         });
@@ -66,7 +77,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
                 <TileLayer
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <GeoJSON data={filteredGeo} style={countryStyle} onEachFeature={onEachFeature}/>
+                <GeoJSON key={selectedCountries.join('-')} data={filteredGeo} style={countryStyle} onEachFeature={onEachFeature}/>
                 {connections.map((conn, idx) => (
                     <Polyline
                         key={idx}

@@ -1,17 +1,20 @@
 import './sass/Map.sass'
 import WorldMapLeaflet from '../components/WorldMap'
 import fetchCountries from '../hooks/countries'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 const Map = () => {
     const [countries, setCountries] = useState([]);
     const [error, setError] = useState(null);
+    const hasFetched = useRef(false);
 
     useEffect(() => {
+        if (hasFetched.current) return;
+        hasFetched.current = true;
+
         async function getCountries() {
             try {
                 const data = await fetchCountries();
-                console.log(data)
                 setCountries(data);
             } catch (err) {
                 setError(err.message);
