@@ -1,0 +1,40 @@
+@use '../../App.sass' as *;
+
+.world-map
+  height: 92dvh
+  width: 100%;
+  position: relative;
+
+.relation-map
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+
+.leaflet-container
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+
+.bot-chat
+  width: 20%;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  top: 94%;
+  left: 80%;
+
+.bot-chat button
+  width: 90%;
+  margin-left: 5%;
+  height: 4dvh;
+  border: none;
+  border-radius: 2dvh;
+  font-family: $font-family;
+  transition: transform 0.2s ease;
+
+.bot-chat button:hover
+  transform: scale(1.02);
+
+.bot-chat button:active
+  transform: scale(0.98);
+

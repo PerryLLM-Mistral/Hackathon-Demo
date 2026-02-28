@@ -4,9 +4,9 @@ import worldGeo from '../assets/world.geo.json'
 
 const WorldMapLeaflet = ({ countriesData, connections }) => {
     const countryStyle = {
-        color: "#565656",
+        color: "#152242",
         weight: 3,
-        fillColor: "#565656",
+        fillColor: "#152242",
         fillOpacity: 0.2,
     }
     
@@ -19,7 +19,6 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
     };
 
     const onEachFeature = (feature, layer) => {
-        const map = useMap()
         const name = feature.properties.name;
         const population = feature.properties.pop_est;
 
@@ -30,19 +29,21 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
                                 Military: 20<br/>
                                 Technology: 60`
        
-        let popup
+        layer.bindPopup(popupContent, {
+            closeButton: false,
+            autoClose: false,
+            closeOnClick: true,
+            className: "custom-popup"
+        });
 
         layer.on("mouseover", (e) => {
-            e.target.setStyle({ weight: 4, color: "#457c4f", fillColor: "#457c4f" }); 
-            popup = L.popup({ closeButton: false })
-                .setLatLng(e.latlng)
-                .setContent(popupContent)
-                .openOn(map)
+            e.target.setStyle({ weight: 4, color: "#05aab3", fillColor: "#05aab3" }); 
+            this.openPopup();
         });
 
         layer.on("mouseout", (e) => {
             e.target.setStyle(countryStyle);
-            map.closePopup(popup);
+            this.closePopup();
         });
     };
 
@@ -54,8 +55,8 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
                 maxZoom={3}
                 zoom={2} 
                 zoomControl={false}
-                style={{ height: '600px', width: '1200px' }} 
                 worldCopyJump={false}
+                style={{ height: "92dvh", width: "80%" }}
                 maxBounds={[
                     [-90, -180], 
                     [90, 180]   
