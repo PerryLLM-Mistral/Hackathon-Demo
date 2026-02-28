@@ -1,7 +1,5 @@
 .env
 *.nix
-<<<<<<< HEAD
-=======
 
 node_modules/
 
@@ -28,4 +26,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
->>>>>>> 7bd47ba (Added: front-end docker and react)
