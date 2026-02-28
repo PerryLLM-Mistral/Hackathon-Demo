@@ -6,9 +6,9 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 import requests
 from dotenv import load_dotenv
-from typing import Optional
 
 from app.multi_llm.schemas.world import WorldState, CountryState, RelationState
 from app.multi_llm.agents.country_agent import CountryAgent
@@ -47,48 +47,81 @@ def print_all_countries(world: WorldState):
         print_country(world, cid)
 
 
-async def run_turn(world: WorldState, agents: dict[str, CountryAgent], provider: MistralProvider, order: list[str]) -> None:
+async def run_turn(
+    world: WorldState,
+    agents: dict[str, CountryAgent],
+    provider: MistralProvider,
+    base_order: list[str],
+    run_id: str,
+) -> None:
+    """
+    Run one full turn (each country acts once). We randomize order each turn to reduce
+    deterministic loops and keep the LLM from always seeing the same agent sequence.
+    """
     t = world.turn
+    rng = secrets.SystemRandom()
 
-    # NOTIFY TURN START: we tell the frontend that a new turn has begun
+    # Randomize order per turn (breaks stable openings)
+    order = list(base_order)
+    rng.shuffle(order)
+
+    # NOTIFY TURN START
     try:
-        requests.post("http://127.0.0.1:8000/events/broadcast", json={
-            "data": {
-                "type": "TURN_START", 
-                "turn": t,
-                "message": f"Turn {t} has started"
-            }
-        })
+        requests.post(
+            "http://127.0.0.1:8000/events/broadcast",
+            json={
+                "data": {
+                    "type": "TURN_START",
+                    "turn": t,
+                    "run_id": run_id,
+                    "order": order,
+                    "nonce": rng.randint(1, 1_000_000),
+                    "message": f"Turn {t} has started (run={run_id})",
+                }
+            },
+            timeout=1,
+        )
     except Exception as e:
         print(f"DEBUG: Bridge not reachable at turn start: {e}")
 
+    section(f"Turn {t} | Order: {order} | run={run_id}")
 
     for cid in order:
         agent = agents[cid]
+
+        # Add per-call variability visible to LLM via the agent (if your CountryAgent
+        # already injects nonce into WORLD payload, this still helps via ordering/logs).
         action = await agent.decide_llm(world, provider)
 
         section(f"Turn {world.turn} | {cid} decides")
-        print(f"Action: {action.type} target={action.target_id} intensity={action.intensity} accept={getattr(action, 'accept', None)}")
+        print(
+            f"Action: {action.type} target={action.target_id} intensity={action.intensity} "
+            f"accept={getattr(action, 'accept', None)}"
+        )
         print(f"Reason: {action.reason}")
 
         apply_action(world, action)
 
         print_all_relations(world)
         print_all_countries(world)
-    
 
-    # NOTIFY TURN END: send the current state of relations so the UI updates its map
+    # NOTIFY TURN END
     try:
-        requests.post("http://127.0.0.1:8000/events/broadcast", json={
-            "data": {
-                "type": "TURN_END",
-                "turn": t,
-                "relations": [
-                    {"id": r.id, "pair": f"{r.country_1}-{r.country_2}", "value": r.relation} 
-                    for r in world.relations
-                ]
-            }
-        })
+        requests.post(
+            "http://127.0.0.1:8000/events/broadcast",
+            json={
+                "data": {
+                    "type": "TURN_END",
+                    "turn": t,
+                    "run_id": run_id,
+                    "relations": [
+                        {"id": r.id, "pair": f"{r.country_1}-{r.country_2}", "value": r.relation}
+                        for r in world.relations
+                    ],
+                }
+            },
+            timeout=1,
+        )
     except Exception as e:
         print(f"DEBUG: Bridge not reachable at turn end: {e}")
 
@@ -96,26 +129,47 @@ async def run_turn(world: WorldState, agents: dict[str, CountryAgent], provider:
 async def main() -> None:
     load_dotenv()
 
+    # per-execution run id to make logs/prompt context vary across runs
+    run_id = secrets.token_hex(4)
+
     world = WorldState(
         turn=0,
         countries=[
             CountryState(
-                id="USA", name="United States",
-                economy=80, social=60, demography=50,
-                technology=90, military_power=85,
-                n_habitants=330, latitude=38.0, longitude=-97.0,
+                id="USA",
+                name="United States",
+                economy=80,
+                social=60,
+                demography=50,
+                technology=90,
+                military_power=85,
+                n_habitants=330,
+                latitude=38.0,
+                longitude=-97.0,
             ),
             CountryState(
-                id="CHI", name="China",
-                economy=85, social=55, demography=60,
-                technology=80, military_power=75,
-                n_habitants=1400, latitude=35.0, longitude=103.0,
+                id="CHI",
+                name="China",
+                economy=85,
+                social=55,
+                demography=60,
+                technology=80,
+                military_power=75,
+                n_habitants=1400,
+                latitude=35.0,
+                longitude=103.0,
             ),
             CountryState(
-                id="RUS", name="Russia",
-                economy=70, social=50, demography=55,
-                technology=75, military_power=80,
-                n_habitants=145, latitude=55.0, longitude=37.0,
+                id="RUS",
+                name="Russia",
+                economy=70,
+                social=50,
+                demography=55,
+                technology=75,
+                military_power=80,
+                n_habitants=145,
+                latitude=55.0,
+                longitude=37.0,
             ),
         ],
         relations=[
@@ -133,13 +187,15 @@ async def main() -> None:
         "RUS": CountryAgent(country_id="RUS", country_name="Russia"),
     }
 
-    section("Initial state")
+    section(f"Initial state (run={run_id})")
     print_all_relations(world)
     print_all_countries(world)
 
+    base_order = ["USA", "CHI", "RUS"]
+
     # Run 3 turns
     for _ in range(3):
-        await run_turn(world, agents, provider, order=["USA", "CHI", "RUS"])
+        await run_turn(world, agents, provider, base_order=base_order, run_id=run_id)
         world.turn += 1
 
 
