@@ -2,6 +2,7 @@
 
 import json
 import random
+import requests
 from math import exp
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
@@ -28,6 +29,9 @@ class CountryAgent(BaseAgent):
         * dynamic tool restrictions (cooldowns / no-spam)
         * nonce in prompt to reduce repeated outputs
         * higher temperature for diversity
+
+    Additionally:
+    - Notifies FastAPI bridge (/events/broadcast) with AGENT_LOG / AGENT_ACTION events.
     """
 
     def __init__(self, country_id: str, country_name: str, prompt_path: Optional[str] = None):
@@ -38,6 +42,23 @@ class CountryAgent(BaseAgent):
 
     def _load_prompt(self, path: str) -> str:
         return Path(path).read_text(encoding="utf-8")
+
+    # -------------------------
+    # Bridge notifications (FROM v1)
+    # -------------------------
+    def _notify_bridge(self, payload: dict):
+        """
+        Helper to send event data to the FastAPI bridge.
+        """
+        try:
+            # We target localhost:8000 because it is the Docker mapped port
+            requests.post(
+                "http://127.0.0.1:8000/events/broadcast",
+                json={"data": payload},
+                timeout=1,
+            )
+        except Exception as e:
+            print(f"DEBUG [Bridge Error]: Could not send to browser. {e}")
 
     # -------------------------
     # World helpers
@@ -96,7 +117,7 @@ class CountryAgent(BaseAgent):
             if r <= acc:
                 return tid
         return targets[-1]
-    
+
     def _tools_block_for(self, tool_specs: dict[str, dict]) -> str:
         """
         Build a tools block that only lists the currently allowed tools.
@@ -160,18 +181,60 @@ class CountryAgent(BaseAgent):
                 intensity=1,
             )
             self._last_action = (action.type, action.target_id, world.turn)
+
+            # NOTIFY (v1 behavior, adapted)
+            self._notify_bridge(
+                {
+                    "type": "AGENT_ACTION",
+                    "agent": self.country_id,
+                    "action_type": action.type.value,
+                    "target": action.target_id,
+                    "intensity": action.intensity,
+                    "reason": action.reason,
+                    "accept": action.accept,
+                    "message": f"{self.country_id} performs {action.type.value} on {action.target_id} (Accept: {action.accept})",
+                }
+            )
             return action
 
         # stochastic pass
         if random.random() < 0.08:
             action = Action(actor_id=self.country_id, type=ActionType.PASS, reason="Strategic pause", intensity=1)
             self._last_action = (action.type, action.target_id, world.turn)
+
+            # NOTIFY
+            self._notify_bridge(
+                {
+                    "type": "AGENT_ACTION",
+                    "agent": self.country_id,
+                    "action_type": action.type.value,
+                    "target": None,
+                    "intensity": action.intensity,
+                    "reason": action.reason,
+                    "accept": None,
+                    "message": f"{self.country_id} performs PASS",
+                }
+            )
             return action
 
         target_id = self._choose_target_stochastic(world)
         if target_id is None:
             action = Action(actor_id=self.country_id, type=ActionType.PASS, reason="No targets", intensity=1)
             self._last_action = (action.type, action.target_id, world.turn)
+
+            # NOTIFY
+            self._notify_bridge(
+                {
+                    "type": "AGENT_ACTION",
+                    "agent": self.country_id,
+                    "action_type": action.type.value,
+                    "target": None,
+                    "intensity": action.intensity,
+                    "reason": action.reason,
+                    "accept": None,
+                    "message": f"{self.country_id} performs PASS (no targets)",
+                }
+            )
             return action
 
         rel = self._get_relation(world, target_id)
@@ -179,7 +242,6 @@ class CountryAgent(BaseAgent):
         has_pending = bool(getattr(rel_state, "pending_alliance_from", None)) if rel_state else False
 
         # weighted choice among actions
-        # (keep it simple, since this is fallback)
         candidates: list[tuple[ActionType, float]] = [
             (ActionType.TRADE, 0.6 + (0.4 if rel >= -20 else 0.0)),
             (ActionType.SANCTION, 0.2 + max(0, -rel) / 120.0),
@@ -223,6 +285,21 @@ class CountryAgent(BaseAgent):
         )
 
         self._last_action = (action.type, action.target_id, world.turn)
+
+        # NOTIFY
+        self._notify_bridge(
+            {
+                "type": "AGENT_ACTION",
+                "agent": self.country_id,
+                "action_type": action.type.value,
+                "target": action.target_id,
+                "intensity": action.intensity,
+                "reason": action.reason,
+                "accept": getattr(action, "accept", None),
+                "message": f"{self.country_id} performs {action.type.value} on {action.target_id} (Intensity: {action.intensity})",
+            }
+        )
+
         return action
 
     # -------------------------
@@ -319,6 +396,15 @@ class CountryAgent(BaseAgent):
         # If model picked a disallowed tool, fallback instead of PASS
         if tool_call.tool not in tool_specs:
             action = await self.decide(world)  # stochastic heuristic fallback
+
+            # NOTIFY
+            self._notify_bridge(
+                {
+                    "type": "AGENT_LOG",
+                    "agent": self.country_id,
+                    "message": f"Model selected disallowed tool '{tool_call.tool}', used heuristic fallback '{action.type.value}'.",
+                }
+            )
             return action
 
         args_model = tool_specs[tool_call.tool]["args_model"]
@@ -333,7 +419,7 @@ class CountryAgent(BaseAgent):
         try:
             args = args_model.model_validate(normalized_args)
             validate_fn(args, world, self.country_id)
-        except (ValidationError, ValueError):
+        except (ValidationError, ValueError) as exc:
             # forced fallback: always respond
             if forced_mode:
                 rel_score = self._get_relation(world, forced_requester)
@@ -348,10 +434,32 @@ class CountryAgent(BaseAgent):
                     intensity=1,
                 )
                 self._last_action = (action.type, action.target_id, world.turn)
+
+                # NOTIFY
+                self._notify_bridge(
+                    {
+                        "type": "AGENT_ACTION",
+                        "agent": self.country_id,
+                        "action_type": action.type.value,
+                        "target": action.target_id,
+                        "intensity": action.intensity,
+                        "reason": action.reason,
+                        "accept": action.accept,
+                        "message": f"{self.country_id} performs RESPOND_ALLIANCE on {action.target_id} (fallback; Accept: {action.accept})",
+                    }
+                )
                 return action
 
             # normal fallback
-            return await self.decide(world)
+            action = await self.decide(world)
+            self._notify_bridge(
+                {
+                    "type": "AGENT_LOG",
+                    "agent": self.country_id,
+                    "message": f"Invalid tool arguments from model: {exc}. Using heuristic fallback '{action.type.value}'.",
+                }
+            )
+            return action
 
         action = Action(
             actor_id=self.country_id,
@@ -363,4 +471,20 @@ class CountryAgent(BaseAgent):
         )
 
         self._last_action = (action.type, action.target_id, world.turn)
+
+        # NOTIFY success (v1 behavior brought in)
+        self._notify_bridge(
+            {
+                "type": "AGENT_ACTION",
+                "agent": self.country_id,
+                "action_type": action.type.value,
+                "target": action.target_id,
+                "intensity": action.intensity,
+                "reason": action.reason,
+                "accept": action.accept,
+                "message": f"{self.country_id} performs {action.type.value} on {action.target_id or 'themselves'} "
+                f"(Intensity: {action.intensity}, Accept: {action.accept})",
+            }
+        )
+
         return action

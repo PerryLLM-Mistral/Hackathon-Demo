@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import asyncio
+import requests
 from dotenv import load_dotenv
+from typing import Optional
 
 from app.multi_llm.schemas.world import WorldState, CountryState, RelationState
 from app.multi_llm.agents.country_agent import CountryAgent
@@ -46,6 +48,21 @@ def print_all_countries(world: WorldState):
 
 
 async def run_turn(world: WorldState, agents: dict[str, CountryAgent], provider: MistralProvider, order: list[str]) -> None:
+    t = world.turn
+
+    # NOTIFY TURN START: we tell the frontend that a new turn has begun
+    try:
+        requests.post("http://127.0.0.1:8000/events/broadcast", json={
+            "data": {
+                "type": "TURN_START", 
+                "turn": t,
+                "message": f"Turn {t} has started"
+            }
+        })
+    except Exception as e:
+        print(f"DEBUG: Bridge not reachable at turn start: {e}")
+
+
     for cid in order:
         agent = agents[cid]
         action = await agent.decide_llm(world, provider)
@@ -58,6 +75,22 @@ async def run_turn(world: WorldState, agents: dict[str, CountryAgent], provider:
 
         print_all_relations(world)
         print_all_countries(world)
+    
+
+    # NOTIFY TURN END: send the current state of relations so the UI updates its map
+    try:
+        requests.post("http://127.0.0.1:8000/events/broadcast", json={
+            "data": {
+                "type": "TURN_END",
+                "turn": t,
+                "relations": [
+                    {"id": r.id, "pair": f"{r.country_1}-{r.country_2}", "value": r.relation} 
+                    for r in world.relations
+                ]
+            }
+        })
+    except Exception as e:
+        print(f"DEBUG: Bridge not reachable at turn end: {e}")
 
 
 async def main() -> None:

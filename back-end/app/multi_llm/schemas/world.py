@@ -1,4 +1,4 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 RelationLabel = Literal["WAR", "NEUTRAL", "ALLY"]
@@ -39,7 +39,7 @@ class RelationState(BaseModel):
     country_2: str
     relation: int = Field(ge=-100, le=100)
 
-    pending_alliance_from: str | None = None
+    pending_alliance_from: Optional[str] = None
 
 class WorldState(BaseModel):
     """
