@@ -6,10 +6,11 @@
 # What it does:
 # - loads initial WorldState from Postgres (countries + relationships)
 # - builds agents dynamically from Countries table (no hardcode)
-# - runs LLM decisions per agent
-# - applies actions in-memory
+# - picks ONLY 5 countries for the game (random sample from DB)
+# - runs LLM decisions per agent using ONLY the 5-country slice (prevents token explosion)
+# - applies actions in-memory to the full world (or just the slice; here we apply to the slice)
 # - optionally persists Turn + ActionHistory each turn (toggle with a boolean)
-# - optionally notifies the FastAPI bridge (/events/broadcast) so the websocket UI updates
+# - optionally notifies the FastAPI bridge (/events/broadcast)
 
 from __future__ import annotations
 
@@ -50,6 +51,12 @@ SEED_IF_EMPTY = True
 # How many turns to run
 N_TURNS = 3
 
+# How many countries in the match
+N_COUNTRIES_IN_MATCH = 5
+
+# If True, sample only from countries.selected == True (if you use that flag)
+USE_SELECTED_ONLY = False
+
 
 # -----------------------------------------------------------------------------
 # Pretty printing
@@ -67,7 +74,6 @@ def print_relation(world: WorldState, a: str, b: str) -> None:
 
 
 def print_all_relations(world: WorldState) -> None:
-    # dynamic pairs: no hardcode
     ids = [c.id for c in world.countries]
     for i in range(len(ids)):
         for j in range(i + 1, len(ids)):
@@ -91,14 +97,6 @@ def print_all_countries(world: WorldState) -> None:
 # DB helpers
 # -----------------------------------------------------------------------------
 def seed_if_empty(db: Session) -> None:
-    """
-    Seed current-state tables if empty:
-      - countries
-      - relationships
-
-    NOTE: Your Relationship model in the project does NOT include pending_alliance_from,
-    so we don't try to set it here.
-    """
     if db.query(Country).first() is not None:
         return
 
@@ -115,9 +113,10 @@ def seed_if_empty(db: Session) -> None:
                 n_habitants=330,
                 latitude=38.0,
                 longitude=-97.0,
+                selected=True,
             ),
             Country(
-                id="CHI",
+                id="CHN",
                 name="China",
                 economy=85,
                 social=55,
@@ -127,6 +126,7 @@ def seed_if_empty(db: Session) -> None:
                 n_habitants=1400,
                 latitude=35.0,
                 longitude=103.0,
+                selected=True,
             ),
             Country(
                 id="RUS",
@@ -139,6 +139,33 @@ def seed_if_empty(db: Session) -> None:
                 n_habitants=145,
                 latitude=55.0,
                 longitude=37.0,
+                selected=True,
+            ),
+            Country(
+                id="ESP",
+                name="Spain",
+                economy=70,
+                social=70,
+                demography=45,
+                technology=70,
+                military_power=45,
+                n_habitants=47,
+                latitude=40.0,
+                longitude=-3.7,
+                selected=True,
+            ),
+            Country(
+                id="FRA",
+                name="France",
+                economy=75,
+                social=70,
+                demography=45,
+                technology=75,
+                military_power=55,
+                n_habitants=68,
+                latitude=46.2,
+                longitude=2.2,
+                selected=True,
             ),
         ]
     )
@@ -146,35 +173,59 @@ def seed_if_empty(db: Session) -> None:
 
     db.add_all(
         [
-            Relationship(country_1="USA", country_2="CHI", relation=0),
+            Relationship(country_1="USA", country_2="CHN", relation=0),
             Relationship(country_1="USA", country_2="RUS", relation=0),
-            Relationship(country_1="CHI", country_2="RUS", relation=0),
+            Relationship(country_1="CHN", country_2="RUS", relation=0),
+            Relationship(country_1="ESP", country_2="FRA", relation=0),
+            Relationship(country_1="USA", country_2="FRA", relation=0),
         ]
     )
     db.commit()
 
 
-def build_agents_from_db(db: Session) -> dict[str, CountryAgent]:
-    """
-    Build agents dynamically from Countries table (no hardcode).
-    """
-    rows = db.query(Country).order_by(Country.id.asc()).all()
+def pick_match_country_ids(db: Session) -> list[str]:
+    q = db.query(Country.id)
+    if USE_SELECTED_ONLY:
+        q = q.filter(Country.selected.is_(True))
+
+    ids = [r[0] for r in q.all()]
+    if len(ids) < N_COUNTRIES_IN_MATCH:
+        raise RuntimeError(
+            f"Not enough countries in DB to start a match of {N_COUNTRIES_IN_MATCH}. "
+            f"Found {len(ids)}."
+        )
+
+    rng = secrets.SystemRandom()
+    return rng.sample(ids, k=N_COUNTRIES_IN_MATCH)
+
+
+def build_agents_from_db(db: Session, match_ids: set[str]) -> dict[str, CountryAgent]:
+    rows = (
+        db.query(Country)
+        .filter(Country.id.in_(match_ids))
+        .order_by(Country.id.asc())
+        .all()
+    )
     if not rows:
-        raise RuntimeError("No countries found in DB. Seed or insert into countries table first.")
+        raise RuntimeError("No countries found for the selected match ids.")
     return {c.id: CountryAgent(country_id=c.id, country_name=c.name) for c in rows}
+
+
+def slice_world(world: WorldState, match_ids: set[str]) -> WorldState:
+    countries = [c for c in world.countries if c.id in match_ids]
+    relations = [
+        r for r in world.relations
+        if (r.country_1 in match_ids and r.country_2 in match_ids)
+    ]
+    return WorldState(turn=world.turn, countries=countries, relations=relations)
 
 
 # -----------------------------------------------------------------------------
 # Bridge notifications
 # -----------------------------------------------------------------------------
 def _notify(payload: dict) -> None:
-    """
-    Best-effort notify bridge -> websocket UI.
-    If FastAPI isn't running, it won't crash the debug script.
-    """
     if not NOTIFY_BRIDGE:
         return
-
     try:
         requests.post(
             "http://127.0.0.1:8000/events/broadcast",
@@ -190,21 +241,13 @@ def _notify(payload: dict) -> None:
 # -----------------------------------------------------------------------------
 async def run_turn(
     db: Session,
-    world: WorldState,
+    world_match: WorldState,
     agents: dict[str, CountryAgent],
     provider: MistralProvider,
     base_order: list[str],
     run_id: str,
 ) -> None:
-    """
-    One full turn:
-      - randomize order
-      - get actions (LLM)
-      - apply_action in memory
-      - optionally persist Turn + ActionHistory (append-only) [WRITE_ACTION_HISTORY]
-      - notify bridge start/end
-    """
-    t = world.turn
+    t = world_match.turn
     rng = secrets.SystemRandom()
 
     order = list(base_order)
@@ -227,25 +270,25 @@ async def run_turn(
 
     for cid in order:
         agent = agents[cid]
-        action = await agent.decide_llm(world, provider)
+
+        # IMPORTANT: the LLM sees ONLY the 5-country match world
+        action = await agent.decide_llm(world_match, provider)
         actions.append(action)
 
-        section(f"Turn {world.turn} | {cid} decides")
+        section(f"Turn {world_match.turn} | {cid} decides")
         print(
             f"Action: {action.type} target={action.target_id} intensity={action.intensity} "
             f"accept={getattr(action, 'accept', None)}"
         )
         print(f"Reason: {action.reason}")
 
-        apply_action(world, action)
+        apply_action(world_match, action)
 
-        print_all_relations(world)
-        print_all_countries(world)
+        print_all_relations(world_match)
+        print_all_countries(world_match)
 
     turn_id = None
     if WRITE_ACTION_HISTORY:
-        # Persist ONLY the action stream (+ required Turn row)
-        # NOTE: this will fail if turns/action_history tables don't exist yet.
         turn_id = persist_turn_actions(
             db=db,
             run_id=run_id,
@@ -260,7 +303,7 @@ async def run_turn(
         "run_id": run_id,
         "relations": [
             {"id": r.id, "pair": f"{r.country_1}-{r.country_2}", "value": r.relation}
-            for r in world.relations
+            for r in world_match.relations
         ],
     }
     if turn_id is not None:
@@ -278,31 +321,33 @@ async def main() -> None:
         if SEED_IF_EMPTY:
             seed_if_empty(db)
 
-        # Load initial state from DB
-        world = load_world_state(db, run_id=RUN_ID)
+        # Load full state (may contain many countries)
+        world_full = load_world_state(db, run_id=RUN_ID)
 
-        # Build agents dynamically from Countries table (no hardcode)
-        agents = build_agents_from_db(db)
+        # Pick exactly 5 countries for the match
+        match_ids = set(pick_match_country_ids(db))
+
+        # Slice world down to match
+        world_match = slice_world(world_full, match_ids)
+
+        # Build agents only for match countries
+        agents = build_agents_from_db(db, match_ids=match_ids)
         base_order = list(agents.keys())
 
         provider = MistralProvider()
 
-        section(f"Initial state (run={RUN_ID})")
-        print_all_relations(world)
-        print_all_countries(world)
+        section(f"Initial match state (run={RUN_ID}) | countries={len(base_order)} | ids={base_order}")
+        print_all_relations(world_match)
+        print_all_countries(world_match)
 
-        # Run N_TURNS turns
         for _ in range(N_TURNS):
-            await run_turn(db, world, agents, provider, base_order=base_order, run_id=RUN_ID)
+            await run_turn(db, world_match, agents, provider, base_order=base_order, run_id=RUN_ID)
+            world_match.turn += 1
 
-            # advance in memory
-            world.turn += 1
-
-            # IMPORTANT:
-            # If WRITE_ACTION_HISTORY is False, do NOT reload from DB each turn
-            # because it would reset state (since DB isn't being updated).
+            # Only reload from DB if we're writing; otherwise DB doesn't reflect changes
             if WRITE_ACTION_HISTORY:
-                world = load_world_state(db, run_id=RUN_ID)
+                world_full = load_world_state(db, run_id=RUN_ID)
+                world_match = slice_world(world_full, match_ids)
 
     finally:
         db.close()
