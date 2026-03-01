@@ -18,11 +18,12 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
         let cleaned = cleanConns(connections, countriesData)
         cleaned = cleaned.filter((c) => c.relation > 20 || c.relation < -20)
         return cleaned
-    }, [countriesData, connections])
+    }, [connections])
 
     useEffect(() => {
         const ids = countriesData.map((country) => country.id)
         setSelectedCountries(ids)
+        console.log("HOLA")
     }, [countriesData])
     
     const filteredGeo = {
