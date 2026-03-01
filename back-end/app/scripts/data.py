@@ -16,7 +16,8 @@ COUNTRIES_DATA = [
     {"id": "CRI", "name": "Costa Rica", "economy": 55, "social": 70, "demography": 45, "technology": 55, "military_power": 10, "n_habitants": 5200000, "latitude": 10.0, "longitude": -84.0, "selected": False},
     {"id": "BHS", "name": "Bahamas", "economy": 60, "social": 65, "demography": 40, "technology": 55, "military_power": 10, "n_habitants": 410000, "latitude": 24.25, "longitude": -76.0, "selected": False},
     {"id": "PRI", "name": "Puerto Rico", "economy": 60, "social": 65, "demography": 40, "technology": 60, "military_power": 10, "n_habitants": 3200000, "latitude": 18.25, "longitude": -66.5, "selected": False},
-
+    {"id": "GRL", "name": "Greenland", "economy": 45, "social": 70, "demography": 20, "technology": 55, "military_power": 5, "n_habitants": 56000, "latitude": 72.0, "longitude": -40.0, "selected": False},
+    
     # --- South America ---
     {"id": "BRA", "name": "Brazil", "economy": 68, "social": 50, "demography": 75, "technology": 65, "military_power": 60, "n_habitants": 214300000, "latitude": -14.0, "longitude": -51.0, "selected": False},
     {"id": "ARG", "name": "Argentina", "economy": 55, "social": 55, "demography": 55, "technology": 55, "military_power": 40, "n_habitants": 46000000, "latitude": -34.0, "longitude": -64.0, "selected": False},
@@ -77,6 +78,19 @@ COUNTRIES_DATA = [
     {"id": "IRN", "name": "Iran", "economy": 55, "social": 45, "demography": 65, "technology": 55, "military_power": 70, "n_habitants": 88000000, "latitude": 32.0, "longitude": 53.0, "selected": False},
     {"id": "TUR", "name": "Turkey", "economy": 65, "social": 55, "demography": 60, "technology": 60, "military_power": 75, "n_habitants": 85000000, "latitude": 39.0, "longitude": 35.0, "selected": False},
     {"id": "EGY", "name": "Egypt", "economy": 50, "social": 45, "demography": 80, "technology": 45, "military_power": 65, "n_habitants": 110000000, "latitude": 27.0, "longitude": 30.0, "selected": False},
+    {"id": "UZB", "name": "Uzbekistan", "economy": 45, "social": 45, "demography": 55, "technology": 40, "military_power": 45, "n_habitants": 36000000, "latitude": 41.7, "longitude": 64.6, "selected": False},
+    {"id": "KGZ", "name": "Kyrgyzstan", "economy": 35, "social": 45, "demography": 45, "technology": 35, "military_power": 25, "n_habitants": 7100000, "latitude": 41.2, "longitude": 74.8, "selected": False},
+    {"id": "TKM", "name": "Turkmenistan", "economy": 45, "social": 40, "demography": 45, "technology": 35, "military_power": 35, "n_habitants": 6300000, "latitude": 39.1, "longitude": 59.4, "selected": False},
+    {"id": "TJK", "name": "Tajikistan", "economy": 30, "social": 40, "demography": 55, "technology": 30, "military_power": 25, "n_habitants": 10200000, "latitude": 38.9, "longitude": 71.3, "selected": False},
+    {"id": "AFG", "name": "Afghanistan", "economy": 20, "social": 25, "demography": 70, "technology": 15, "military_power": 45, "n_habitants": 42000000, "latitude": 33.9, "longitude": 67.7, "selected": False},
+    {"id": "GEO", "name": "Georgia", "economy": 50, "social": 55, "demography": 40, "technology": 50, "military_power": 35, "n_habitants": 3700000, "latitude": 42.0, "longitude": 43.5, "selected": False},
+    {"id": "ARM", "name": "Armenia", "economy": 45, "social": 55, "demography": 40, "technology": 50, "military_power": 35, "n_habitants": 2800000, "latitude": 40.0, "longitude": 45.0, "selected": False},
+    {"id": "AZE", "name": "Azerbaijan", "economy": 55, "social": 50, "demography": 45, "technology": 50, "military_power": 45, "n_habitants": 10500000, "latitude": 40.5, "longitude": 47.5, "selected": False},
+    {"id": "YEM", "name": "Yemen", "economy": 20, "social": 25, "demography": 70, "technology": 15, "military_power": 30, "n_habitants": 34000000, "latitude": 15.5, "longitude": 47.5, "selected": False},
+    {"id": "OMN", "name": "Oman", "economy": 65, "social": 60, "demography": 45, "technology": 55, "military_power": 45, "n_habitants": 4600000, "latitude": 21.0, "longitude": 57.0, "selected": False},
+    {"id": "IRQ", "name": "Iraq", "economy": 45, "social": 40, "demography": 70, "technology": 35, "military_power": 65, "n_habitants": 46000000, "latitude": 33.0, "longitude": 44.0, "selected": False},
+    {"id": "SYR", "name": "Syria", "economy": 25, "social": 30, "demography": 60, "technology": 25, "military_power": 55, "n_habitants": 22000000, "latitude": 35.0, "longitude": 38.0, "selected": False},
+    {"id": "JOR", "name": "Jordan", "economy": 55, "social": 60, "demography": 55, "technology": 50, "military_power": 40, "n_habitants": 11300000, "latitude": 31.0, "longitude": 36.0, "selected": False},
 
     # --- Asia & Oceania ---
     {"id": "CHN", "name": "China", "economy": 92, "social": 55, "demography": 95, "technology": 90, "military_power": 92, "n_habitants": 1412914089, "latitude": 35.0, "longitude": 105.0, "selected": False},
@@ -95,7 +109,18 @@ COUNTRIES_DATA = [
     {"id": "NZL", "name": "New Zealand", "economy": 70, "social": 85, "demography": 35, "technology": 75, "military_power": 30, "n_habitants": 5200000, "latitude": -41.0, "longitude": 174.0, "selected": False},
     {"id": "MNG", "name": "Mongolia", "economy": 45, "social": 55, "demography": 40, "technology": 45, "military_power": 30, "n_habitants": 3500000, "latitude": 46.0, "longitude": 105.0, "selected": False},
     {"id": "KAZ", "name": "Kazakhstan", "economy": 55, "social": 50, "demography": 45, "technology": 50, "military_power": 45, "n_habitants": 20000000, "latitude": 48.0, "longitude": 68.0, "selected": False},
-
+    {"id": "PNG", "name": "Papua New Guinea", "economy": 35, "social": 40, "demography": 65, "technology": 25, "military_power": 20, "n_habitants": 10300000, "latitude": -6.0, "longitude": 147.0, "selected": False},
+    {"id": "NPL", "name": "Nepal", "economy": 35, "social": 45, "demography": 60, "technology": 30, "military_power": 35, "n_habitants": 30500000, "latitude": 28.0, "longitude": 84.0, "selected": False},
+    {"id": "MMR", "name": "Myanmar", "economy": 35, "social": 35, "demography": 65, "technology": 30, "military_power": 55, "n_habitants": 55000000, "latitude": 22.0, "longitude": 98.0, "selected": False},
+    {"id": "UZB", "name": "Uzbekistan", "economy": 45, "social": 45, "demography": 55, "technology": 40, "military_power": 45, "n_habitants": 36000000, "latitude": 41.7, "longitude": 64.6, "selected": False},
+    {"id": "KGZ", "name": "Kyrgyzstan", "economy": 35, "social": 45, "demography": 45, "technology": 35, "military_power": 25, "n_habitants": 7100000, "latitude": 41.2, "longitude": 74.8, "selected": False},
+    {"id": "TKM", "name": "Turkmenistan", "economy": 45, "social": 40, "demography": 45, "technology": 35, "military_power": 35, "n_habitants": 6300000, "latitude": 39.1, "longitude": 59.4, "selected": False},
+    {"id": "TJK", "name": "Tajikistan", "economy": 30, "social": 40, "demography": 55, "technology": 30, "military_power": 25, "n_habitants": 10200000, "latitude": 38.9, "longitude": 71.3, "selected": False},
+    {"id": "AFG", "name": "Afghanistan", "economy": 20, "social": 25, "demography": 70, "technology": 15, "military_power": 45, "n_habitants": 42000000, "latitude": 33.9, "longitude": 67.7, "selected": False},
+    {"id": "MYS", "name": "Malaysia", "economy": 65, "social": 60, "demography": 60, "technology": 65, "military_power": 50, "n_habitants": 34000000, "latitude": 2.5, "longitude": 112.5, "selected": False},
+    {"id": "KHM", "name": "Cambodia", "economy": 40, "social": 45, "demography": 60, "technology": 35, "military_power": 25, "n_habitants": 17000000, "latitude": 13.0, "longitude": 105.0, "selected": False},
+    {"id": "LAO", "name": "Laos", "economy": 35, "social": 45, "demography": 55, "technology": 30, "military_power": 20, "n_habitants": 7600000, "latitude": 18.0, "longitude": 105.0, "selected": False},
+    
     # --- Africa ---
     {"id": "ZAF", "name": "South Africa", "economy": 55, "social": 40, "demography": 60, "technology": 60, "military_power": 55, "n_habitants": 60000000, "latitude": -29.0, "longitude": 24.0, "selected": False},
     {"id": "NGA", "name": "Nigeria", "economy": 50, "social": 35, "demography": 90, "technology": 40, "military_power": 55, "n_habitants": 230000000, "latitude": 10.0, "longitude": 8.0, "selected": False},
@@ -140,5 +165,6 @@ COUNTRIES_DATA = [
     {"id": "SSD", "name": "South Sudan", "economy": 20, "social": 20, "demography": 75, "technology": 15, "military_power": 25, "n_habitants": 12000000, "latitude": 7.0, "longitude": 30.0, "selected": False},
     {"id": "UGA", "name": "Uganda", "economy": 35, "social": 35, "demography": 80, "technology": 25, "military_power": 30, "n_habitants": 48000000, "latitude": 1.0, "longitude": 32.0, "selected": False},
     {"id": "ZMB", "name": "Zambia", "economy": 35, "social": 35, "demography": 70, "technology": 25, "military_power": 20, "n_habitants": 20500000, "latitude": -15.0, "longitude": 30.0, "selected": False},
-    {"id": "ZWE", "name": "Zimbabwe", "economy": 30, "social": 30, "demography": 65, "technology": 25, "military_power": 25, "n_habitants": 16500000, "latitude": -20.0, "longitude": 30.0, "selected": False}
+    {"id": "ZWE", "name": "Zimbabwe", "economy": 30, "social": 30, "demography": 65, "technology": 25, "military_power": 25, "n_habitants": 16500000, "latitude": -20.0, "longitude": 30.0, "selected": False},
+    {"id": "SSD", "name": "South Sudan", "economy": 20, "social": 25, "demography": 75, "technology": 15, "military_power": 30, "n_habitants": 12000000, "latitude": 7.5, "longitude": 30.0, "selected": False}
 ]
