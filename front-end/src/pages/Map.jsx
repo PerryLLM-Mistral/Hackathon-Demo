@@ -123,7 +123,7 @@ const Map = () => {
                 </div>
 
                 <div className="simulation">
-                    <button onClick={startSimulation}>Step Simulation</button>
+                    <button onClick={startSimulation}>Next turn</button>
                 </div>
             </section>
             <ToastContainer position="top-right" autoClose={3000} />
