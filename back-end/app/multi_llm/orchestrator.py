@@ -33,14 +33,7 @@ class Orchestrator:
             self.reload_agents(world)
 
         for agent in self.active_agents:
-            if self.provider is None:
-                action = await agent.decide(world)
-            else:
-                try:
-                    action = await agent.decide_llm(world, self.provider)
-                except Exception:
-                    action = await agent.decide(world)
-
+            action = await agent.decide_llm(world, self.provider)
             actions.append(action)
 
         return actions
