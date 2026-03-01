@@ -7,7 +7,7 @@ const Footer = () => {
     <footer className="footer">
       <div className="footer__content">
         <div className="footer__project">PerryLLM</div>
-        <div className="footer__team">Done by: Alina Rojas Reynoso, Laura Llorente Martínez, Antonio Pérez Márquez y Laia Delgado González</div>
+        <div className="footer__team">Made by: Alina Rojas Reynoso, Laura Llorente Martínez, Antonio Pérez Márquez & Laia Delgado González</div>
         <div className="footer__repo">
           <a
             href="https://github.com/PerryLLM-Mistral/Hackathon-Demo"
