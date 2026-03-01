@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.src.models import models
 from app.src.schemas import schemas
-
+from app.multi_llm.schemas import Action
 
 # CONTROLLER FOR COUNTRY MODEL
 
@@ -38,6 +38,22 @@ class CountryController:
     def get_selected(db: Session):
         # Retrieve only the countries that have the 'selected' flag set to True
         return db.query(models.Country).filter(models.Country.selected == True).all()
+    
+    @staticmethod
+    def select_countries(db: Session, country_ids: list[str], clear_previous: bool = True):
+        
+        # Recieves a list of IDs and changes 'selected' flag to True
+
+        if clear_previous:
+            db.query(models.Country).update({models.Country.selected: False})
+
+        # Change to True
+        db.query(models.Country).filter(
+            models.Country.id.in_([cid.upper() for cid in country_ids])
+        ).update({models.Country.selected: True}, synchronize_session=False)
+
+        db.commit()
+        return True
 
 
 
@@ -75,3 +91,79 @@ class RelationshipController:
         db.refresh(new_rel)
         
         return new_rel
+
+
+# CONTROLLER FOR TURN MODEL
+
+class TurnController:
+
+    @staticmethod
+    def get_all(db: Session):
+        return db.query(models.Turn).all()
+
+    @staticmethod
+    def get_by_id(db: Session, turn_id: int):
+        return db.query(models.Turn).filter(models.Turn.id == turn_id).first()
+
+    @staticmethod
+    def create(db: Session, turn_data: schemas.TurnCreate):
+        new_turn = models.Turn(**turn_data.model_dump())
+        db.add(new_turn)
+        db.commit()
+        db.refresh(new_turn)
+        return new_turn
+    
+
+# CONTROLLER FOR COUNTRYSTATEHISTORY MODEL
+
+class CountryStateHistoryController:
+
+    @staticmethod
+    def get_all(db: Session):
+        return db.query(models.CountryStateHistory).all()
+
+    @staticmethod
+    def get_by_id(db: Session, state_id: int):
+        return db.query(models.CountryStateHistory).filter(models.CountryStateHistory.id == state_id).first()
+
+    @staticmethod
+    def create(db: Session, state_data: schemas.CountryStateHistoryCreate):
+        new_state = models.CountryStateHistory(**state_data.model_dump())
+        db.add(new_state)
+        db.commit()
+        db.refresh(new_state)
+        return new_state
+
+
+# CONTROLLER FOR RELATIONSHIPHISTORY MODEL
+
+class RelationshipHistoryController:
+
+    @staticmethod
+    def get_all(db: Session):
+        return db.query(models.RelationshipHistory).all()
+
+    @staticmethod
+    def create(db: Session, rh_data: schemas.RelationshipHistoryCreate):
+        new_rh = models.RelationshipHistory(**rh_data.model_dump())
+        db.add(new_rh)
+        db.commit()
+        db.refresh(new_rh)
+        return new_rh
+    
+
+# CONTROLLER FOR ACTIONHISTORY MODEL
+
+class ActionHistoryController:
+
+    @staticmethod
+    def get_all(db: Session):
+        return db.query(models.ActionHistory).all()
+
+    @staticmethod
+    def create(db: Session, ah_data: schemas.ActionHistoryCreate):
+        new_ah = models.ActionHistory(**ah_data.model_dump())
+        db.add(new_ah)
+        db.commit()
+        db.refresh(new_ah)
+        return new_ah

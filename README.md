@@ -49,6 +49,34 @@ The system is organized into three layers:
    * **Multi-LLM layer**: country agents select structured actions using Mistral models
    * **Simulation engine**: applies deterministic rules and quantitative effects to update the world
 
+## Backend URL configuration
+
+The frontend reads the backend base URL from .venv file:
+
+```bash
+VITE_PUBLIC_API_URL=http://localhost:8000
+```
+
+**Why this differs between environments**
+
+* **WSL2 / Docker Desktop (Windows):**
+  Containers run inside a VM. The browser cannot access Docker’s internal `172.x.x.x` network, so you must use the host-published port via `localhost`.
+
+* **Native Linux Docker:**
+  Docker runs natively and the bridge network is directly accessible. You can retrieve the backend container IP with:
+
+```bash
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' fastapi_backend
+```
+
+Then set:
+
+```bash
+VITE_PUBLIC_API_URL=http://<BACKEND_IP>:<backend_port>
+```
+
+Using `localhost` is generally more portable, but on native Linux accessing the container IP may also work.
+
 
 ## Core Concepts
 

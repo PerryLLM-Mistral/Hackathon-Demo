@@ -57,7 +57,6 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
         });
 
         layer.on("click", function (e) {
-            
             if (!selected) {
                 simulationCountries.push(country)
                 selected = true;
