@@ -33,8 +33,8 @@ async def startup_event():
 # CORS CONFIGURATION
 # ===============================
 origins = [
-    "http://172.24.0.3:5173",   # Local Vite
-    "http://react_frontend:3000"  # Docker Compose
+    "http://172.23.0.2:5173",   # Local Vite
+    "http://react_frontend:5173"  # Docker Compose
 ]
 
 app.add_middleware(
