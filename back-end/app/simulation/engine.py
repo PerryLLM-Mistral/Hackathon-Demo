@@ -1,12 +1,14 @@
 # app/simulation/engine.py
-
 from __future__ import annotations
 
 from typing import Optional
 
+from sqlalchemy.orm import Session
+
 from app.multi_llm.schemas.world import WorldState, RelationState
 from app.multi_llm.schemas.action import Action, ActionType
 from app.simulation.effects import get_effect
+from app.simulation.state_store import load_world_state, persist_turn_actions
 
 
 def clamp_int(x: int, lo: int, hi: int) -> int:
@@ -26,7 +28,6 @@ def ensure_relation(world: WorldState, a: str, b: str) -> RelationState:
         return rel
 
     new_id = max((r.id for r in world.relations), default=0) + 1
-    # pending_alliance_from is expected to exist in RelationState after your schema change.
     rel = RelationState(id=new_id, country_1=a, country_2=b, relation=0, pending_alliance_from=None)
     world.relations.append(rel)
     return rel
@@ -40,36 +41,22 @@ def find_country(world: WorldState, country_id: str):
 
 
 def apply_action(world: WorldState, action: Action) -> None:
-    """
-    Applies quantitative actions to the world.
-
-    Quantitative-only policy:
-    - PASS: no-op
-    - PROPOSE_ALLIANCE: creates pending alliance request state (no direct numeric deltas)
-    - RESPOND_ALLIANCE: applies +/- relation delta and clears pending
-    - Others: apply effects from effects.py, scaled by intensity when appropriate
-    """
     if action.type == ActionType.PASS:
         return
 
-    # For anything but PASS we expect a target (PROPOSE/RESPOND/WAR/TRADE/SANCTION)
     if not action.target_id:
         return
 
     rel = ensure_relation(world, action.actor_id, action.target_id)
 
-    # 1) Proposal: only sets pending state, no numeric effects
     if action.type == ActionType.PROPOSE_ALLIANCE:
-        # No permitir spam: si ya hay una petición pendiente en este par, no haces nada.
         if getattr(rel, "pending_alliance_from", None) is not None:
             return
-
         rel.pending_alliance_from = action.actor_id
         if hasattr(rel, "pending_alliance_turn"):
             rel.pending_alliance_turn = world.turn
         return
 
-    # 2) Response: apply +/- relation delta and clear pending
     if action.type == ActionType.RESPOND_ALLIANCE:
         eff = get_effect(action)
         rel.relation = clamp_int(rel.relation + eff.relation, -100, 100)
@@ -78,13 +65,9 @@ def apply_action(world: WorldState, action: Action) -> None:
             rel.pending_alliance_turn = None
         return
 
-    # 3) Other actions: apply base effects scaled by intensity
     eff = get_effect(action)
-
-    # Relation change
     rel.relation = clamp_int(rel.relation + eff.relation * action.intensity, -100, 100)
 
-    # Country metric deltas (simple symmetric application for demo)
     actor = find_country(world, action.actor_id)
     target = find_country(world, action.target_id)
     if actor is None or target is None:
@@ -95,38 +78,60 @@ def apply_action(world: WorldState, action: Action) -> None:
         entity.social = clamp_int(entity.social + eff.social * action.intensity, 0, 100)
         entity.demography = clamp_int(entity.demography + eff.demography * action.intensity, 0, 100)
         entity.technology = clamp_int(entity.technology + eff.technology * action.intensity, 0, 100)
-        entity.military_power = clamp_int(
-            entity.military_power + eff.military_power * action.intensity, 0, 100
-        )
+        entity.military_power = clamp_int(entity.military_power + eff.military_power * action.intensity, 0, 100)
 
 
 class SimulationEngine:
     """
-    Small stateful wrapper used by the FastAPI routes.
+    Stateful engine for FastAPI:
 
-    - Keeps an in-memory WorldState
-    - get_state(): returns current state
-    - apply(actions): applies a batch and advances turn; returns a delta payload
+    - Holds in-memory WorldState (good for websocket live view)
+    - Loads initial state from DB once (countries + relationships)
+    - Writes Turn + ActionHistory every step (append-only action stream)
     """
 
-    def __init__(self, initial_world: WorldState | None = None):
-        # Adjust this default if your WorldState requires extra mandatory fields.
-        self._world: WorldState = initial_world or WorldState(turn=0, countries=[], relations=[])
+    def __init__(self):
+        self._world: Optional[WorldState] = None
+
+    def ensure_loaded(self, db: Session, run_id: str) -> None:
+        if self._world is None:
+            self._world = load_world_state(db, run_id=run_id)
 
     def get_state(self) -> WorldState:
+        if self._world is None:
+            # caller should have called ensure_loaded
+            return WorldState(turn=0, countries=[], relations=[])
         return self._world
 
-    def apply(self, actions: list[Action]):
-        # Apply actions (in-place mutations)
+    def apply(self, db: Session, run_id: str, actions: list[Action], order: Optional[list[str]] = None):
+        """
+        Apply actions in-memory + persist action stream.
+
+        Returns:
+          delta payload for websocket/UI
+        """
+        world = self.get_state()
+
+        # apply in memory
         for action in actions:
-            apply_action(self._world, action)
+            apply_action(world, action)
 
-        # Advance turn after applying the batch
-        self._world.turn += 1
+        # persist Turn + ActionHistory (write-only stream)
+        turn_id = persist_turn_actions(
+            db=db,
+            run_id=run_id,
+            turn_number=world.turn,
+            order=order,
+            actions=actions,
+        )
 
-        # Delta payload: for now return the full updated state.
-        # You can later return only changed entities if needed.
+        # advance in-memory turn
+        world.turn += 1
+
         return {
-            "turn": self._world.turn,
-            "world": self._world,
+            "run_id": run_id,
+            "turn_id": turn_id,
+            "turn": world.turn,
+            "actions": [a.model_dump() for a in actions],
+            "world": world,
         }
