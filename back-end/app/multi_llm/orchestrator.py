@@ -3,7 +3,7 @@
 from typing import List
 from app.multi_llm.schemas.world import WorldState
 from app.multi_llm.schemas.action import Action
-from app.multi_llm.agents.registry import AGENTS
+from app.multi_llm.agents.registry import get_selected_agents
 
 class Orchestrator:
     """
@@ -11,11 +11,15 @@ class Orchestrator:
     """
 
     def __init__(self):
-        self.agents = AGENTS  # fixed 3 agents
+        pass
 
     async def decide_turn(self, world: WorldState) -> List[Action]:
         actions: List[Action] = []
-        for agent in self.agents:
+        
+        active_agents = get_selected_agents(world)
+        
+        for agent in active_agents:
             action = await agent.decide(world)
             actions.append(action)
+            
         return actions
