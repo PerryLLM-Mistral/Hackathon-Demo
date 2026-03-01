@@ -29,7 +29,7 @@ class Turn(Base):
     id = Column(Integer, primary_key=True, index=True)
     run_id = Column(String(32), index=True, nullable=False)
     turn_number = Column(Integer, nullable=False)
-    order = Column(String, nullable=True) 
+    order = Column(String, nullable=True)
 
 class CountryStateHistory(Base):
     __tablename__ = "country_state_history"

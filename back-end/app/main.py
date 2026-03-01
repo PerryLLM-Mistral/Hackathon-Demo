@@ -5,7 +5,7 @@ from app.multi_llm.orchestrator import Orchestrator
 from app.simulation.engine import SimulationEngine
 from app.database import engine as db_engine
 from app.src.models import models
-from app.src.routes import countries, relationships, simulation, ws, events
+from app.src.routes import countries, relationships, simulation, ws, events, turns, country_state_history, relationship_history, action_history
 from app.scripts.seed_db import seed 
 
 # Create the database tables
@@ -59,3 +59,8 @@ app.include_router(relationships.router)
 app.include_router(simulation.router)
 app.include_router(ws.router)
 app.include_router(events.router)
+
+app.include_router(turns.router)
+app.include_router(country_state_history.router)
+app.include_router(relationship_history.router)
+app.include_router(action_history.router)
