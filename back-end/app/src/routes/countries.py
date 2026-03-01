@@ -33,7 +33,7 @@ def get_selected_countries(db: Session = Depends(get_db)):
 
 
 # SELECT MULTIPLE COUNTRIES AT ONCE
-@router.post("/select-multiple")
+@router.patch("/select-multiple")
 def select_multiple_countries(country_ids: List[str], db: Session = Depends(get_db)):
     try:
         # Call controller method to change 'selected' flag to True
