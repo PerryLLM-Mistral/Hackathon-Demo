@@ -8,7 +8,6 @@ const fetchCountries = async () => {
             throw new Error("Error while fetching countries")
         }
         const data = await response.json()
-        console.log(data)
         return data
     } catch (err) {
         throw new Error("Error fetching countries")

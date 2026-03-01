@@ -5,6 +5,7 @@ import fetchCountries from '../hooks/countries'
 import fetchAllRelations from '../hooks/relations'
 import cleanConns from '../utils/cleanConnections'
 import useWebSocket from '../hooks/webSocket'
+import useSimulation from '../hooks/useSimulation'
 import { useEffect, useState, useRef } from 'react'
 
 const Map = () => {
@@ -40,6 +41,10 @@ const Map = () => {
 
         fetchData();
     }, []);
+
+    const startSimulation = async () => {
+        const data = await useSimulation();
+    }
     
     return (
         <div className="world-map">
@@ -60,7 +65,7 @@ const Map = () => {
                     ))}
                 </div>
                 <div className="simulation">
-                    <button>Start Simulation</button>
+                    <button onClick={startSimulation}>Step Simulation</button>
                 </div>
             </section>
         </div>

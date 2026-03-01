@@ -41,7 +41,7 @@ def select_multiple_countries(country_ids: List[str] = Body(...), db: Session = 
         if not success:
             raise HTTPException(status_code=400, detail="Error updating selection")
         
-        return {"status": "success", "message": f"{len(country_ids)} selected countries"}
+        return {"status": "success", "message": f"{len(country_ids)} selected countries", "data": success}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
