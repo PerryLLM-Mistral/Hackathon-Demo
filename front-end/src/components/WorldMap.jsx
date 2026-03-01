@@ -18,12 +18,11 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
         let cleaned = cleanConns(connections, countriesData)
         cleaned = cleaned.filter((c) => c.relation > 20 || c.relation < -20)
         return cleaned
-    }, [connections])
+    }, [connections, countriesData])
 
     useEffect(() => {
         const ids = countriesData.map((country) => country.id)
         setSelectedCountries(ids)
-        console.log("HOLA")
     }, [countriesData])
     
     const filteredGeo = {
@@ -87,7 +86,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
                 <TileLayer
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <GeoJSON key={selectedCountries.join('-')} data={filteredGeo} style={countryStyle} onEachFeature={onEachFeature}/>
+                <GeoJSON key={JSON.stringify(countriesData)} data={filteredGeo} style={countryStyle} onEachFeature={onEachFeature}/>
                 {cleanConnections.map((conn, idx) => (
                     <Polyline
                         key={idx}
