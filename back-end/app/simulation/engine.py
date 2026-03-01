@@ -92,6 +92,17 @@ def apply_action(world: WorldState, action: Action) -> None:
         eff = get_effect(action)
         rel.relation = clamp_int(rel.relation + eff.relation, -100, 100)
         rel.pending_alliance_from = None
+
+        _notify_bridge({
+            "type": "AGENT_ACTION",
+            "agent": action.actor_id,
+            "action_type": "RESPOND_ALLIANCE",
+            "target": action.target_id,
+            "new_relation": rel.relation,
+            "reason": action.reason,
+            "accept": action.accept
+        })
+
         if hasattr(rel, "pending_alliance_turn"):
             rel.pending_alliance_turn = None
         return
