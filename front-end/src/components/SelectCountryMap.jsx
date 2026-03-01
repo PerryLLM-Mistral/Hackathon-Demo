@@ -29,6 +29,7 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
         const name = feature.properties.name;
         const population = feature.properties.pop_est;
         const country = countriesData.find((c) => c.id === feature.properties.adm0_a3)
+        let selected = false;
 
         const popupContent = `<strong>${name}</strong><br/>
                                 Population: ${population.toLocaleString()}<br/>
@@ -46,6 +47,7 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
         });
 
         layer.on("mousemove", function (e) {
+            if (selected) return;
             layer.setStyle({
                 weight: 4,
                 color: "#05aab3",
@@ -55,9 +57,25 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
 
         layer.on("click", function (e) {
             
+            if (!selected) {
+                selected = true;
+                layer.setStyle({
+                    weight: 4,
+                    color: "#c23917",
+                    fillColor: "#c23917",
+                });
+            } else {
+                selected = false;
+                layer.setStyle({                    
+                    weight: 4,
+                    color: "#05aab3",
+                    fillColor: "#05aab3"
+                })
+            }
         });
 
         layer.on("mouseout", function () {
+            if (selected) return;
             layer.setStyle(countryStyle);
         });
 
