@@ -48,12 +48,12 @@ class CountryController:
             db.query(models.Country).update({models.Country.selected: False})
 
         # Change to True
-        db.query(models.Country).filter(
+        data = db.query(models.Country).filter(
             models.Country.id.in_([cid.upper() for cid in country_ids])
         ).update({models.Country.selected: True}, synchronize_session=False)
 
         db.commit()
-        return True
+        return data
 
 
 
