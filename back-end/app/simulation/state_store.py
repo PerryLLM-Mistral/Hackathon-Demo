@@ -10,7 +10,6 @@ from app.multi_llm.schemas.world import WorldState, CountryState, RelationState
 from app.multi_llm.schemas.action import Action
 from app.src.models.models import Country, Relationship, Turn, ActionHistory
 
-
 def load_world_state(db: Session, run_id: str) -> WorldState:
     """
     Load initial world state from DB.
@@ -31,8 +30,26 @@ def load_world_state(db: Session, run_id: str) -> WorldState:
     )
     turn_number = int(last_turn + 1) if last_turn is not None else 0
 
-    countries_db = db.query(Country).order_by(Country.id.asc()).all()
-    rels_db = db.query(Relationship).order_by(Relationship.id.asc()).all()
+    # Only selected countries
+    countries_db = (
+        db.query(Country)
+        .filter(Country.selected.is_(True))
+        .order_by(Country.id.asc())
+        .all()
+    )
+
+    selected_ids = {c.id for c in countries_db}
+
+    # Only relationships between selected countries
+    rels_db = (
+        db.query(Relationship)
+        .filter(
+            Relationship.country_1.in_(selected_ids),
+            Relationship.country_2.in_(selected_ids),
+        )
+        .order_by(Relationship.id.asc())
+        .all()
+    )
 
     countries: List[CountryState] = [
         CountryState(
@@ -56,7 +73,7 @@ def load_world_state(db: Session, run_id: str) -> WorldState:
             country_1=r.country_1,
             country_2=r.country_2,
             relation=r.relation,
-            pending_alliance_from=None,  # not stored in Relationship table in this project
+            pending_alliance_from=None,
         )
         for r in rels_db
     ]
