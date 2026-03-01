@@ -4,8 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.multi_llm.orchestrator import Orchestrator
 from app.simulation.engine import SimulationEngine
 from app.database import engine as db_engine
+from app.database import SessionLocal
 from app.src.models import models
-from app.src.routes import countries, relationships, simulation, ws, events
+from app.src.routes import countries, relationships, simulation, ws, events, reset
 from app.scripts.seed_db import seed 
 
 # Create the database tables
@@ -18,7 +19,6 @@ app = FastAPI()
 # ===============================
 @app.on_event("startup")
 async def startup_event():
-    from app.database import SessionLocal
     db = SessionLocal()
     country_count = db.query(models.Country).count()
     db.close()
@@ -59,3 +59,4 @@ app.include_router(relationships.router)
 app.include_router(simulation.router)
 app.include_router(ws.router)
 app.include_router(events.router)
+app.include_router(reset.router)
