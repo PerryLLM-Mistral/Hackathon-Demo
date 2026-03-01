@@ -58,7 +58,6 @@ async def seed():
         {"id": "IRL", "name": "Ireland", "economy": 80, "social": 80, "demography": 45, "technology": 85, "military_power": 20, "n_habitants": 5200000, "latitude": 53.0, "longitude": -8.0, "selected": False},
         {"id": "CZE", "name": "Czechia", "economy": 65, "social": 65, "demography": 45, "technology": 65, "military_power": 35, "n_habitants": 10900000, "latitude": 49.75, "longitude": 15.5, "selected": False},
         {"id": "HUN", "name": "Hungary", "economy": 55, "social": 55, "demography": 45, "technology": 55, "military_power": 30, "n_habitants": 9600000, "latitude": 47.0, "longitude": 20.0, "selected": False},
-        {"id": "NOR", "name": "Norway", "economy": 80, "social": 90, "demography": 45, "technology": 82, "military_power": 45, "n_habitants": 5500000, "latitude": 62.0, "longitude": 10.0, "selected": False},
         {"id": "BLR", "name": "Belarus", "economy": 45, "social": 45, "demography": 50, "technology": 45, "military_power": 55, "n_habitants": 9200000, "latitude": 53.0, "longitude": 28.0, "selected": False},
         {"id": "LVA", "name": "Latvia", "economy": 60, "social": 70, "demography": 40, "technology": 65, "military_power": 25, "n_habitants": 1850000, "latitude": 57.0, "longitude": 25.0, "selected": False},
         {"id": "EST", "name": "Estonia", "economy": 65, "social": 75, "demography": 40, "technology": 75, "military_power": 25, "n_habitants": 1320000, "latitude": 59.0, "longitude": 26.0, "selected": False},
@@ -156,8 +155,8 @@ async def seed():
             else:
                 rel.relation = random.randint(REL_MIN, REL_MAX)
 
-        db.commit()
-        db.close()
+    db.commit()
+    db.close()
 
 if __name__ == "__main__":
     asyncio.run(seed())
