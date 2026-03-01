@@ -1,0 +1,97 @@
+@use '../../App.sass' as *
+
+.home
+  font-family: system-ui, sans-serif
+
+  &__hero
+    height: 105dvh
+    background: url('../../assets/home.png') no-repeat center center
+    background-size: cover
+    background-position: center
+    position: relative
+    display: flex
+    justify-content: center
+    align-items: center
+    text-align: center
+    color: white
+
+  &__overlay
+    position: absolute
+    inset: 0
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(0,0,0,0.7))
+
+  &__content
+    position: relative
+    z-index: 2
+    max-width: 800px
+    padding: 2rem
+
+    h1
+      font-size: 3rem
+      margin-bottom: 1rem
+
+    p
+      font-size: 1.2rem
+      margin-bottom: 2rem
+      line-height: 1.6
+
+    button
+      padding: 0.9rem 2.5rem
+      background: $primary-color
+      border: none
+      border-radius: 30px
+      color: white
+      font-size: 1rem
+      cursor: pointer
+      transition: 0.3s
+
+      &:hover
+        background: $secondary-color
+        transform: translateY(-2px)
+
+  &__section
+    padding: 5rem 10%
+    background: white
+    color: $primary-color
+
+    h2
+      font-size: 2rem
+      margin-bottom: 2rem
+
+    p
+      margin-bottom: 1rem
+      line-height: 1.7
+
+    ul
+      list-style: none
+      padding: 0
+
+      li
+        margin-bottom: 0.8rem
+        padding-left: 1rem
+        position: relative
+
+        &::before
+          content: "•"
+          position: absolute
+          left: 0
+          color: $detail-color
+
+  &__section--alt
+    background: $background-color
+
+.architecture
+  display: grid
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))
+  gap: 2rem
+
+.tech
+  display: flex
+  flex-wrap: wrap
+  gap: 1rem
+
+  span
+    background: $detail-color
+    padding: 0.5rem 1rem
+    border-radius: 20px
+    font-weight: 500

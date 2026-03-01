@@ -1,0 +1,37 @@
+@use '../../App.sass' as *;
+
+// Footer general
+.footer
+  background-color: $primary-color
+  color: $background-color
+  padding: 1.5rem 0
+  text-align: center
+  margin-top: 0
+
+.footer__content
+  display: flex
+  flex-direction: column
+  align-items: center
+  gap: 0.5rem
+
+.footer__project
+  font-size: 1.2rem
+  font-weight: bold
+  color: $detail-color
+
+.footer__team
+  font-size: 0.9rem
+  color: $background-color
+
+.footer__repo
+  margin-top: 0.5rem
+
+.footer__repo a
+  display: flex
+  align-items: center
+  gap: 0.3rem
+  color: $detail-color
+  transition: color 0.2s
+
+.footer__repo a:hover
+  color: $secondary-color         
