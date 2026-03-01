@@ -22,7 +22,7 @@ const Map = () => {
     useEffect(() => {
         if (!msg) return;
         setMessages(prev => [...prev, {
-            sender: msg.source.id, 
+            sender: msg.source.id,
             target: msg.target.id,
             action: msg.metadata.actionType,
             content: msg.metadata.reason,
@@ -40,7 +40,7 @@ const Map = () => {
             try {
                 const data_countries = await fetchCountries();
                 const data_relations = await fetchAllRelations();
-                
+
                 setCountries(data_countries);
                 setConnections(data_relations);
             } catch (err) {
@@ -54,27 +54,58 @@ const Map = () => {
     const startSimulation = async () => {
         const data = await useSimulation();
     }
-    
+
     return (
         <div className="world-map">
-            
+
             <section className="relations-map">
                 {selectedCountries.length > 0 ? (
                     <WorldMapLeaflet countriesData={selectedCountries} connections={connections} />) : (
-                    <WorldMapSelection countriesData={countries} setCountries={setSelectedCountries}/>)
+                    <WorldMapSelection countriesData={countries} setCountries={setSelectedCountries} />)
                 }
             </section>
             <section className="bot-chat">
                 <div className="chat-box">
-                    {messages.length == 0 && 
+                    <div className="chat-header">
+                        <span className="chat-title">Actions</span>
+                        <span className="chat-count">{messages.length} actions</span>
+                    </div>
+
+                    {messages.length === 0 && (
                         <p className="message">No messages generated</p>
-                    }
-                    {messages.map((msg, idx) =>(
-                        msg.target.length == 0 ? ( 
-                            <p key={idx} className="message"><strong>{msg.sender}<br/>{msg.action} </strong>{msg.content}</p>) : (
-                            <p key={idx} className="message"><strong>{msg.sender}->{msg.target}<br/>{msg.action} </strong>{msg.content}</p>)
-                    ))}
+                    )}
+
+                    {messages.map((msg, idx) => {
+                        const hasTarget = msg.target && msg.target.length > 0;
+                        const actionClass = `badge badge--${String(msg.action).toLowerCase()}`;
+
+                        return (
+                            <div key={idx} className="message">
+                                <div className="msg-line1">
+                                    <span className="msg-index">#{idx + 1}</span>
+
+                                    <span className="msg-route">
+                                        <strong className="msg-sender">{msg.sender}</strong>
+
+                                        {hasTarget && (
+                                            <>
+                                                <span className="msg-arrow" aria-hidden="true">➜</span>
+                                                <strong className="msg-target">{msg.target}</strong>
+                                            </>
+                                        )}
+                                    </span>
+
+                                    <span className={`badge badge--${String(msg.action).toLowerCase()}`}>
+                                        {msg.action}
+                                    </span>
+                                </div>
+
+                                <p className="msg-body">{msg.content}</p>
+                            </div>
+                        );
+                    })}
                 </div>
+
                 <div className="simulation">
                     <button onClick={startSimulation}>Step Simulation</button>
                 </div>

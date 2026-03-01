@@ -29,7 +29,7 @@
 .chat-box
   flex: 1;
   overflow-y: auto;
-  margin-bottom: 3dvh;
+  margin-bottom: dvh;
   border-bottom: 0.2vw solid $detail-color
   padding: 0 5% 0 5%;
 
@@ -44,11 +44,6 @@
     background: $detail-color;
     border-radius: 3dvh;
     border: 0.4vw solid $background-color;
-
-.chat-box .message
-  color: $chat-font-color;
-  font-family: $font-family;
-  font-size: $font-chat-size;
 
 .bot-chat button
   width: 100%;
@@ -66,3 +61,116 @@
 
 .bot-chat button:active
   box-shadow: inset 0 3px 0 rgba(0,0,0,0.3), 0 0 3px 0 rgba(0,0,0,0.2);
+
+.chat-header
+  position: sticky
+  top: 0
+  z-index: 2
+  display: flex
+  justify-content: space-between
+  align-items: baseline
+  padding: 1.2dvh 0
+  background: $background-color
+
+.chat-title
+  font-family: $font-family
+  font-weight: 700
+  color: $chat-font-color
+
+.chat-count
+  font-family: $font-family
+  color: $chat-font-color
+  opacity: 0.75
+  font-size: 0.9em
+
+.chat-box .message
+  display: block
+  padding: 1.4dvh 1.3dvh
+  margin: 1.4dvh 0
+  border-radius: 1.6dvh
+  border: 0.12vw solid rgba($chat-font-color, 0.35)
+  background: rgba(255, 255, 255, 0.18)
+  box-shadow: 0 0 6px rgba(0,0,0,0.06)
+  color: $chat-font-color
+  font-family: $font-family
+  font-size: $font-chat-size
+
+.msg-line1
+  display: flex
+  align-items: center
+  gap: 1dvh
+  margin-bottom: 0.8dvh
+
+.msg-index
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  padding: 0.15dvh 0.65dvh
+  border-radius: 0.9dvh
+  border: 0.12vw solid rgba($chat-font-color, 0.35)
+  background: rgba(255, 255, 255, 0.22)
+  font-family: $font-family
+  font-weight: 700
+  font-size: 0.75em
+  color: $chat-font-color
+  opacity: 0.9
+  flex: 0 0 auto
+
+.msg-route strong
+  color: $secondary-color
+  font-family: $font-family
+  font-weight: 700
+  letter-spacing: 0.02em
+
+.msg-line2
+  margin-bottom: 0.8dvh
+
+.msg-body
+  margin: 0
+  margin-top: 0.4dvh
+  color: $chat-font-color
+  font-family: $font-family
+  font-size: $font-chat-size
+  line-height: 1.35
+  opacity: 0.95
+
+.badge
+  margin-left: auto
+  flex: 0 0 auto
+  display: inline-flex
+  align-items: center
+  padding: 0.20dvh 0.75dvh
+  border-radius: 999px
+  border: 0.12vw solid rgba($secondary-color, 0.18)
+  font-family: $font-family
+  font-size: 0.68em
+  font-weight: 700
+  letter-spacing: 0.02em
+  background: rgba($detail-color, 0.85)
+  color: $secondary-color
+  white-space: nowrap
+
+.badge--trade
+  background: rgba($detail-color, 0.95)
+  border-color: rgba($secondary-color, 0.16)
+  color: $secondary-color
+
+.badge--propose_alliance
+  background: rgba($primary-color, 0.14)
+  border-color: rgba($primary-color, 0.22)
+  color: $primary-color
+
+.badge--respond_alliance
+  background: rgba($secondary-color, 0.10)
+  border-color: rgba($secondary-color, 0.18)
+  color: $secondary-color
+
+.badge--war
+  background: rgba($secondary-color, 0.16)
+  border-color: rgba($secondary-color, 0.26)
+  color: $secondary-color
+
+.badge--sanction
+  background: rgba($primary-color, 0.16)
+  border-color: rgba($primary-color, 0.26)
+  color: $primary-color
