@@ -44,22 +44,40 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
                                 Military: ${country.military_power}<br/>
                                 Technology: ${country.technology}`
        
-        layer.bindPopup(popupContent, {
-            closeButton: false,
-            autoClose: false,
-            closeOnClick: true,
-            className: "custom-popup"
+        let popup;
+
+        layer.on("mousemove", function (e) {
+            if (!popup) {
+                popup = L.popup({
+                    closeButton: false,
+                    autoClose: false,
+                    closeOnClick: false,
+                    className: "custom-popup",
+                    offset: [10, 10]
+                })
+                .setLatLng(e.latlng)
+                .setContent(popupContent)
+                .openOn(e.target._map);
+            } else {
+                popup.setLatLng(e.latlng);
+            }
+
+            layer.setStyle({
+                weight: 4,
+                color: "#05aab3",
+                fillColor: "#05aab3"
+            });
         });
 
-        layer.on("mouseover", function (e) {
-            e.target.setStyle({ weight: 4, color: "#05aab3", fillColor: "#05aab3" }); 
-            this.openPopup();
+        layer.on("mouseout", function () {
+            if (popup) {
+                popup.remove();
+                popup = null;
+            }
+
+            layer.setStyle(countryStyle);
         });
 
-        layer.on("mouseout", function (e) {
-            e.target.setStyle(countryStyle);
-            this.closePopup();
-        });
     };
 
     return (
