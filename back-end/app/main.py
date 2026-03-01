@@ -1,7 +1,9 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.multi_llm.orchestrator import Orchestrator
 from app.simulation.engine import SimulationEngine
 from app.database import engine as db_engine
 from app.database import SessionLocal
@@ -52,7 +54,6 @@ app.add_middleware(
 # ===============================
 # CORE ENGINE INSTANCES
 # ===============================
-orchestrator = Orchestrator()
 sim_engine = SimulationEngine()
 
 # ===============================
