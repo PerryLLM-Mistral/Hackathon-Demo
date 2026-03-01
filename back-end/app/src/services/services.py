@@ -38,6 +38,22 @@ class CountryController:
     def get_selected(db: Session):
         # Retrieve only the countries that have the 'selected' flag set to True
         return db.query(models.Country).filter(models.Country.selected == True).all()
+    
+    @staticmethod
+    def select_countries(db: Session, country_ids: list[str], clear_previous: bool = True):
+        
+        # Recieves a list of IDs and changes 'selected' flag to True
+
+        if clear_previous:
+            db.query(models.Country).update({models.Country.selected: False})
+
+        # Change to True
+        db.query(models.Country).filter(
+            models.Country.id.in_([cid.upper() for cid in country_ids])
+        ).update({models.Country.selected: True}, synchronize_session=False)
+
+        db.commit()
+        return True
 
 
 

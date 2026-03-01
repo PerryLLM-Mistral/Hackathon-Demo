@@ -32,6 +32,21 @@ def get_selected_countries(db: Session = Depends(get_db)):
     return CountryController.get_selected(db)
 
 
+# SELECT MULTIPLE COUNTRIES AT ONCE
+@router.post("/select-multiple")
+def select_multiple_countries(country_ids: List[str], db: Session = Depends(get_db)):
+    try:
+        # Call controller method to change 'selected' flag to True
+        success = CountryController.select_countries(db, country_ids)
+        if not success:
+            raise HTTPException(status_code=400, detail="Error updating selection")
+        
+        return {"status": "success", "message": f"{len(country_ids)} selected countries"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
 # GET COUNTRY BY ID
 @router.get("/{country_id}", response_model=schemas.Country)
 def get_country_by_id(country_id: str, db: Session = Depends(get_db)):
