@@ -25,6 +25,8 @@ const useWebSocket = () => {
             try {
                 const rawData = JSON.parse(event.data);
                 const data = rawData.payload?.data || rawData.payload || rawData.data || rawData;
+                
+                console.log(data)
 
                 if (data.type === "AGENT_ACTION") {
                     const organizedMsg = {

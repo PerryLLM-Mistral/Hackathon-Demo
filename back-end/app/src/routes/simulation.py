@@ -35,5 +35,4 @@ async def step(db: Session = Depends(get_db)):
 
     delta = sim_engine.apply(db=db, run_id=RUN_ID, actions=actions, order=order)
 
-    await manager.broadcast({"event": "step_update", "payload": delta})
     return delta
