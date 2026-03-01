@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Polyline, GeoJSON } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import resetCountries from '../hooks/reset'
+import selectMultipleCountries from '../hooks/useSelectedCountries'
 import worldGeo from '../assets/world.geo.json'
 
 const WorldMapSelection = ({ countriesData, setCountries }) => {
@@ -92,6 +93,7 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
         }
 
         const reset = await resetCountries();
+        const select_db = await selectMultipleCountries(simulationCountries.map((c) => c.id))
         setCountries(simulationCountries);
     }
 

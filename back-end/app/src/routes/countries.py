@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
@@ -34,7 +34,7 @@ def get_selected_countries(db: Session = Depends(get_db)):
 
 # SELECT MULTIPLE COUNTRIES AT ONCE
 @router.patch("/select-multiple")
-def select_multiple_countries(country_ids: List[str], db: Session = Depends(get_db)):
+def select_multiple_countries(country_ids: List[str] = Body(...), db: Session = Depends(get_db)):
     try:
         # Call controller method to change 'selected' flag to True
         success = CountryController.select_countries(db, country_ids)
