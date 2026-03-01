@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.src.services import reset
+from app.src.routes.simulation import sim_engine, RUN_ID
 
 router = APIRouter(prefix="/reset", tags=["Reset Database"])
 
@@ -16,5 +17,7 @@ async def handle_reset(db: Session = Depends(get_db)):
             status_code=500, 
             detail=f"Database operation failed: {result['message']}"
         )
+    
+    sim_engine.force_reload(db, RUN_ID)
         
     return result

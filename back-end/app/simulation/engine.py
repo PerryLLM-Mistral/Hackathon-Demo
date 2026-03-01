@@ -157,17 +157,18 @@ class SimulationEngine:
     """
 
     def __init__(self):
-        self._world: Optional[WorldState] = None
+        self._world_by_run: dict[str, WorldState] = {}
 
-    def ensure_loaded(self, db: Session, run_id: str) -> None:
-        if self._world is None:
-            self._world = load_world_state(db, run_id=run_id)
+    def ensure_loaded(self, db, run_id: str):
+        if run_id not in self._world_by_run:
+            self._world_by_run[run_id] = load_world_state(db, run_id)
 
-    def get_state(self) -> WorldState:
-        if self._world is None:
-            # caller should have called ensure_loaded
-            return WorldState(turn=0, countries=[], relations=[])
-        return self._world
+    def force_reload(self, db, run_id: str):
+        self._world_by_run.pop(run_id, None)
+        self._world_by_run[run_id] = load_world_state(db, run_id)
+
+    def get_state(self, run_id: str = "demo") -> WorldState:
+        return self._world_by_run[run_id]
 
     def apply(self, db: Session, run_id: str, actions: list[Action], order: Optional[list[str]] = None):
         """
