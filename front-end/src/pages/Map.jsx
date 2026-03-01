@@ -17,6 +17,7 @@ const Map = () => {
     const [selectedCountries, setSelectedCountries] = useState([]);
     const [connections, setConnections] = useState([]);
     const [messages, setMessages] = useState([]);
+    const [loadingMessages, setLoadingMessages] = useState(false);
     const [error, setError] = useState(null);
     const hasFetched = useRef(false);
     const msg = useWebSocket();
@@ -28,10 +29,11 @@ const Map = () => {
             target: msg.target.id,
             action: msg.metadata.actionType,
             content: msg.metadata.reason,
-        }])
-        updateValues(connections, setConnections, msg)
-        changeValues(countries, setSelectedCountries, msg.source)
-        changeValues(countries, setSelectedCountries, msg.target)
+        }]);
+        updateValues(connections, setConnections, msg);
+        changeValues(countries, setSelectedCountries, msg.source);
+        changeValues(countries, setSelectedCountries, msg.target);
+        setLoadingMessages(false);
     }, [msg]);
 
     useEffect(() => {
@@ -57,8 +59,11 @@ const Map = () => {
         if (selectedCountries.length == 0) { 
             toast.error("Select 5 countries");
             return;
+        } else if (loadingMessages) {
+            toast.error("Wait until the previous messages load");
+            return;
         }
-        console.log(selectedCountries)
+        setLoadingMessages(true);
         const data = await useSimulation();
     }
 
@@ -78,10 +83,10 @@ const Map = () => {
                         <span className="chat-count">{messages.length} actions</span>
                     </div>
 
-                    {messages.length === 0 && (
+                    {messages.length == 0 && !loadingMessages && (
                         <p className="message">No messages generated</p>
                     )}
-
+                    
                     {messages.map((msg, idx) => {
                         const hasTarget = msg.target && msg.target.length > 0;
                         const actionClass = `badge badge--${String(msg.action).toLowerCase()}`;
@@ -111,6 +116,10 @@ const Map = () => {
                             </div>
                         );
                     })}
+                    
+                    {loadingMessages && (
+                        <p className="message">Loading messages...</p>
+                    )}
                 </div>
 
                 <div className="simulation">
