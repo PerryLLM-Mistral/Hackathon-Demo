@@ -6,6 +6,7 @@ import fetchAllRelations from '../hooks/relations'
 import cleanConns from '../utils/cleanConnections'
 import useWebSocket from '../hooks/webSocket'
 import useSimulation from '../hooks/useSimulation'
+import updateValues from '../utils/changeConnections'
 import { useEffect, useState, useRef } from 'react'
 
 const Map = () => {
@@ -20,6 +21,7 @@ const Map = () => {
     useEffect(() => {
         if (!msg) return;
         setMessages(prev => [...prev, {sender: msg.source.id, content: msg.metadata.reason}])
+        updateValues(connections, setConnections, msg)
     }, [msg]);
 
     useEffect(() => {
