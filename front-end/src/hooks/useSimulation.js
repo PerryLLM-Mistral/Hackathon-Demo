@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const BASE_URL = `${import.meta.env.VITE_PUBLIC_API_URL}/simulation/step`;
+const BASE_URL = `${import.meta.env.VITE_PUBLIC_API_URL}/step`;
 
 export function useSimulation() {
     const [loading, setLoading] = useState(false);
