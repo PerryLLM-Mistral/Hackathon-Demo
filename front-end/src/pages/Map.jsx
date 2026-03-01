@@ -9,6 +9,8 @@ import useSimulation from '../hooks/useSimulation'
 import updateValues from '../utils/changeConnections'
 import changeValues from '../utils/changeCountries'
 import { useEffect, useState, useRef } from 'react'
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const Map = () => {
     const [countries, setCountries] = useState([]);
@@ -52,7 +54,11 @@ const Map = () => {
     }, []);
 
     const startSimulation = async () => {
-        if (selectedCountries.length == 0) alert("Selecciona 5 países");
+        if (selectedCountries.length == 0) { 
+            toast.error("Select 5 countries");
+            return;
+        }
+        console.log(selectedCountries)
         const data = await useSimulation();
     }
     
@@ -73,13 +79,14 @@ const Map = () => {
                     {messages.map((msg, idx) =>(
                         msg.target.length == 0 ? ( 
                             <p key={idx} className="message"><strong>{msg.sender}<br/>{msg.action} </strong>{msg.content}</p>) : (
-                            <p key={idx} className="message"><strong>{msg.sender}->{msg.target}<br/>{msg.action} </strong>{msg.content}</p>)
+                            <p key={idx} className="message"><strong>{msg.sender}{"->"}{msg.target}<br/>{msg.action} </strong>{msg.content}</p>)
                     ))}
                 </div>
                 <div className="simulation">
                     <button onClick={startSimulation}>Step Simulation</button>
                 </div>
             </section>
+            <ToastContainer position="top-right" autoClose={3000} />
         </div>
     )
 }
