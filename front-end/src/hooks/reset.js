@@ -18,3 +18,5 @@ const resetCountries = async () => {
         throw new Error("Error reseting")
     }
 }
+
+export default resetCountries
