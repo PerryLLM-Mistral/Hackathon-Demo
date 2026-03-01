@@ -1,13 +1,14 @@
-# app/debug_battle_llm.py
+# app/debug_battle.py
 #
 # Run (inside the backend container so "db" hostname resolves):
-#   python -m app.debug_battle_llm
+#   python -m app.debug_battle
 #
 # What it does:
 # - loads initial WorldState from Postgres (countries + relationships)
+# - builds agents dynamically from Countries table (no hardcode)
 # - runs LLM decisions per agent
 # - applies actions in-memory
-# - persists Turn + ActionHistory each turn
+# - optionally persists Turn + ActionHistory each turn (toggle with a boolean)
 # - optionally notifies the FastAPI bridge (/events/broadcast) so the websocket UI updates
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ load_dotenv()  # MUST be before importing app.database
 import asyncio
 import secrets
 import requests
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -32,9 +32,28 @@ from app.simulation.state_store import load_world_state, persist_turn_actions
 from app.src.models.models import Country, Relationship
 
 
-RUN_ID = "demo"  # use a stable run id for debugging, or replace with secrets.token_hex(4)
+# -----------------------------------------------------------------------------
+# CONFIG
+# -----------------------------------------------------------------------------
+RUN_ID = "demo"  # stable run id for debugging (or use secrets.token_hex(4))
+
+# Toggle DB writes to Turn + ActionHistory (via persist_turn_actions)
+WRITE_ACTION_HISTORY = False
+
+# Optional: notify FastAPI bridge (websocket UI) via /events/broadcast
+NOTIFY_BRIDGE = True
+
+# Optional: seed DB if empty (this writes to countries/relationships)
+# Keep False if you want a pure read-only run
+SEED_IF_EMPTY = True
+
+# How many turns to run
+N_TURNS = 3
 
 
+# -----------------------------------------------------------------------------
+# Pretty printing
+# -----------------------------------------------------------------------------
 def section(title: str) -> None:
     print("\n" + "=" * 80)
     print(title)
@@ -47,10 +66,12 @@ def print_relation(world: WorldState, a: str, b: str) -> None:
     print(f"Relation {a}<->{b}: {rel.relation:>4} | pending_alliance_from={pending}")
 
 
-def print_all_relations(world: WorldState):
-    print_relation(world, "USA", "CHI")
-    print_relation(world, "USA", "RUS")
-    print_relation(world, "CHI", "RUS")
+def print_all_relations(world: WorldState) -> None:
+    # dynamic pairs: no hardcode
+    ids = [c.id for c in world.countries]
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            print_relation(world, ids[i], ids[j])
 
 
 def print_country(world: WorldState, cid: str) -> None:
@@ -61,11 +82,14 @@ def print_country(world: WorldState, cid: str) -> None:
     )
 
 
-def print_all_countries(world: WorldState):
-    for cid in ["USA", "CHI", "RUS"]:
-        print_country(world, cid)
+def print_all_countries(world: WorldState) -> None:
+    for c in world.countries:
+        print_country(world, c.id)
 
 
+# -----------------------------------------------------------------------------
+# DB helpers
+# -----------------------------------------------------------------------------
 def seed_if_empty(db: Session) -> None:
     """
     Seed current-state tables if empty:
@@ -130,11 +154,27 @@ def seed_if_empty(db: Session) -> None:
     db.commit()
 
 
+def build_agents_from_db(db: Session) -> dict[str, CountryAgent]:
+    """
+    Build agents dynamically from Countries table (no hardcode).
+    """
+    rows = db.query(Country).order_by(Country.id.asc()).all()
+    if not rows:
+        raise RuntimeError("No countries found in DB. Seed or insert into countries table first.")
+    return {c.id: CountryAgent(country_id=c.id, country_name=c.name) for c in rows}
+
+
+# -----------------------------------------------------------------------------
+# Bridge notifications
+# -----------------------------------------------------------------------------
 def _notify(payload: dict) -> None:
     """
     Best-effort notify bridge -> websocket UI.
     If FastAPI isn't running, it won't crash the debug script.
     """
+    if not NOTIFY_BRIDGE:
+        return
+
     try:
         requests.post(
             "http://127.0.0.1:8000/events/broadcast",
@@ -145,6 +185,9 @@ def _notify(payload: dict) -> None:
         print(f"DEBUG: Bridge not reachable: {e}")
 
 
+# -----------------------------------------------------------------------------
+# Turn runner
+# -----------------------------------------------------------------------------
 async def run_turn(
     db: Session,
     world: WorldState,
@@ -158,7 +201,7 @@ async def run_turn(
       - randomize order
       - get actions (LLM)
       - apply_action in memory
-      - persist Turn + ActionHistory (append-only)
+      - optionally persist Turn + ActionHistory (append-only) [WRITE_ACTION_HISTORY]
       - notify bridge start/end
     """
     t = world.turn
@@ -199,59 +242,67 @@ async def run_turn(
         print_all_relations(world)
         print_all_countries(world)
 
-    # Persist ONLY the action stream (+ required Turn row)
-    turn_id = persist_turn_actions(
-        db=db,
-        run_id=run_id,
-        turn_number=t,
-        order=order,
-        actions=actions,
-    )
+    turn_id = None
+    if WRITE_ACTION_HISTORY:
+        # Persist ONLY the action stream (+ required Turn row)
+        # NOTE: this will fail if turns/action_history tables don't exist yet.
+        turn_id = persist_turn_actions(
+            db=db,
+            run_id=run_id,
+            turn_number=t,
+            order=order,
+            actions=actions,
+        )
 
-    _notify(
-        {
-            "type": "TURN_END",
-            "turn": t,
-            "turn_id": turn_id,
-            "run_id": run_id,
-            "relations": [
-                {"id": r.id, "pair": f"{r.country_1}-{r.country_2}", "value": r.relation}
-                for r in world.relations
-            ],
-        }
-    )
+    end_payload = {
+        "type": "TURN_END",
+        "turn": t,
+        "run_id": run_id,
+        "relations": [
+            {"id": r.id, "pair": f"{r.country_1}-{r.country_2}", "value": r.relation}
+            for r in world.relations
+        ],
+    }
+    if turn_id is not None:
+        end_payload["turn_id"] = turn_id
+
+    _notify(end_payload)
 
 
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
 async def main() -> None:
     db = SessionLocal()
     try:
-        seed_if_empty(db)
+        if SEED_IF_EMPTY:
+            seed_if_empty(db)
 
         # Load initial state from DB
         world = load_world_state(db, run_id=RUN_ID)
 
+        # Build agents dynamically from Countries table (no hardcode)
+        agents = build_agents_from_db(db)
+        base_order = list(agents.keys())
+
         provider = MistralProvider()
-        agents = {
-            "USA": CountryAgent(country_id="USA", country_name="United States"),
-            "CHI": CountryAgent(country_id="CHI", country_name="China"),
-            "RUS": CountryAgent(country_id="RUS", country_name="Russia"),
-        }
 
         section(f"Initial state (run={RUN_ID})")
         print_all_relations(world)
         print_all_countries(world)
 
-        base_order = ["USA", "CHI", "RUS"]
-
-        # Run 3 turns
-        for _ in range(3):
+        # Run N_TURNS turns
+        for _ in range(N_TURNS):
             await run_turn(db, world, agents, provider, base_order=base_order, run_id=RUN_ID)
 
             # advance in memory
             world.turn += 1
 
-            # (optional) reload from DB to confirm read-path still works
-            world = load_world_state(db, run_id=RUN_ID)
+            # IMPORTANT:
+            # If WRITE_ACTION_HISTORY is False, do NOT reload from DB each turn
+            # because it would reset state (since DB isn't being updated).
+            if WRITE_ACTION_HISTORY:
+                world = load_world_state(db, run_id=RUN_ID)
 
     finally:
         db.close()
