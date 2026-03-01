@@ -41,19 +41,22 @@ class CountryController:
     
     @staticmethod
     def select_countries(db: Session, country_ids: list[str], clear_previous: bool = True):
-        
         # Recieves a list of IDs and changes 'selected' flag to True
+
+        ids = [cid.strip().upper() for cid in country_ids if cid and cid.strip()]
+        ids = list(dict.fromkeys(ids))
 
         if clear_previous:
             db.query(models.Country).update({models.Country.selected: False})
 
         # Change to True
-        data = db.query(models.Country).filter(
-            models.Country.id.in_([cid.upper() for cid in country_ids])
-        ).update({models.Country.selected: True}, synchronize_session=False)
+        if ids:
+            db.query(models.Country).filter(
+                models.Country.id.in_(ids)
+            ).update({models.Country.selected: True}, synchronize_session=False)
 
         db.commit()
-        return data
+        return ids
 
 
 

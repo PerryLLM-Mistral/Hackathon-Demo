@@ -10,7 +10,7 @@ from app.multi_llm.schemas.world import WorldState, RelationState
 from app.multi_llm.schemas.action import Action, ActionType
 from app.simulation.effects import get_effect
 from app.simulation.state_store import load_world_state, persist_turn_actions
-
+from app.src.models.models import Country
 
 # -------------------------
 # Bridge notifications
@@ -158,14 +158,36 @@ class SimulationEngine:
 
     def __init__(self):
         self._world_by_run: dict[str, WorldState] = {}
+        self._selected_ids_by_run: dict[str, frozenset[str]] = {}
 
-    def ensure_loaded(self, db, run_id: str):
+    def _get_selected_ids(self, db: Session) -> frozenset[str]:
+        rows = db.query(Country.id).filter(Country.selected.is_(True)).all()
+        # rows: list[tuple[str]] -> set[str]
+        return frozenset(cid.strip().upper() for (cid,) in rows)
+
+    def ensure_loaded(self, db: Session, run_id: str):
+        current_selected = self._get_selected_ids(db)
+
+        # 1) First load
         if run_id not in self._world_by_run:
             self._world_by_run[run_id] = load_world_state(db, run_id)
+            self._selected_ids_by_run[run_id] = current_selected
+            return
 
-    def force_reload(self, db, run_id: str):
+        # 2) Reload
+        cached_selected = self._selected_ids_by_run.get(run_id, frozenset())
+        if current_selected != cached_selected:
+            self.force_reload(db, run_id, current_selected)
+
+    def force_reload(self, db: Session, run_id: str, selected_ids: frozenset[str] | None = None):
         self._world_by_run.pop(run_id, None)
+        self._selected_ids_by_run.pop(run_id, None)
         self._world_by_run[run_id] = load_world_state(db, run_id)
+        self._selected_ids_by_run[run_id] = self._get_selected_ids(db)
+
+        if selected_ids is None:
+            selected_ids = self._get_selected_ids(db)
+        self._selected_ids_by_run[run_id] = selected_ids
 
     def get_state(self, run_id: str = "demo") -> WorldState:
         return self._world_by_run[run_id]
