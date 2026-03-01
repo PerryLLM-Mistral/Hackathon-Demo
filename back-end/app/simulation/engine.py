@@ -108,9 +108,12 @@ class SimulationEngine:
         Apply actions in-memory + persist action stream.
 
         Returns:
-          delta payload for websocket/UI
+        delta payload for websocket/UI
         """
         world = self.get_state()
+
+        # current turn
+        applied_turn = world.turn
 
         # apply in memory
         for action in actions:
@@ -120,7 +123,7 @@ class SimulationEngine:
         turn_id = persist_turn_actions(
             db=db,
             run_id=run_id,
-            turn_number=world.turn,
+            turn_number=applied_turn,
             order=order,
             actions=actions,
         )
@@ -131,7 +134,7 @@ class SimulationEngine:
         return {
             "run_id": run_id,
             "turn_id": turn_id,
-            "turn": world.turn,
+            "turn": applied_turn,
             "actions": [a.model_dump() for a in actions],
             "world": world,
         }
