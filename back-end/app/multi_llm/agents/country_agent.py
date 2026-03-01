@@ -2,7 +2,6 @@
 
 import json
 import secrets
-import requests
 from math import exp
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
@@ -52,19 +51,6 @@ class CountryAgent(BaseAgent):
 
     def _load_prompt(self, path: str) -> str:
         return Path(path).read_text(encoding="utf-8")
-
-    # -------------------------
-    # Bridge notifications
-    # -------------------------
-    def _notify_bridge(self, payload: dict):
-        try:
-            requests.post(
-                "http://127.0.0.1:8000/events/broadcast",
-                json={"data": payload},
-                timeout=1,
-            )
-        except Exception as e:
-            print(f"DEBUG [Bridge Error]: Could not send to browser. {e}")
 
     # -------------------------
     # World helpers
@@ -193,21 +179,18 @@ class CountryAgent(BaseAgent):
                 intensity=1,
             )
             self._last_action = (action.type, action.target_id, world.turn)
-            self._notify_bridge(self._action_payload(action))
             return action
 
         # small stochastic pass
         if self._rng.random() < 0.05:
             action = Action(actor_id=self.country_id, type=ActionType.PASS, reason="Strategic pause", intensity=1)
             self._last_action = (action.type, action.target_id, world.turn)
-            self._notify_bridge(self._action_payload(action))
             return action
 
         target_id = self._choose_target_stochastic(world)
         if target_id is None:
             action = Action(actor_id=self.country_id, type=ActionType.PASS, reason="No targets", intensity=1)
             self._last_action = (action.type, action.target_id, world.turn)
-            self._notify_bridge(self._action_payload(action))
             return action
 
         rel = self._get_relation(world, target_id)
@@ -295,20 +278,7 @@ class CountryAgent(BaseAgent):
             intensity=intensity,
         )
         self._last_action = (action.type, action.target_id, world.turn)
-        self._notify_bridge(self._action_payload(action))
         return action
-
-    def _action_payload(self, action: Action) -> dict:
-        return {
-            "type": "AGENT_ACTION",
-            "agent": self.country_id,
-            "action_type": action.type.value,
-            "target": getattr(action, "target_id", None),
-            "intensity": getattr(action, "intensity", 1),
-            "reason": getattr(action, "reason", ""),
-            "accept": getattr(action, "accept", None),
-            "message": f"{self.country_id} performs {action.type.value} on {getattr(action, 'target_id', None) or 'N/A'}",
-        }
 
     # -------------------------
     # LLM tool-based decision
@@ -321,9 +291,6 @@ class CountryAgent(BaseAgent):
         # epsilon-greedy bypass (but never bypass forced respond)
         if not forced_mode and self._rng.random() < self.epsilon_bypass_llm:
             action = await self.decide(world)
-            self._notify_bridge(
-                {"type": "AGENT_LOG", "agent": self.country_id, "message": "Bypassed LLM (epsilon-greedy)."}
-            )
             return action
 
         nonce = self._rng.randint(1, 1_000_000)
@@ -421,13 +388,6 @@ class CountryAgent(BaseAgent):
         # disallowed -> heuristic fallback
         if tool_call.tool not in tool_specs:
             action = await self.decide(world)
-            self._notify_bridge(
-                {
-                    "type": "AGENT_LOG",
-                    "agent": self.country_id,
-                    "message": f"Model selected disallowed tool '{tool_call.tool}', used heuristic fallback '{action.type.value}'.",
-                }
-            )
             return action
 
         args_model = tool_specs[tool_call.tool]["args_model"]
@@ -454,13 +414,9 @@ class CountryAgent(BaseAgent):
                     intensity=1,
                 )
                 self._last_action = (action.type, action.target_id, world.turn)
-                self._notify_bridge(self._action_payload(action))
                 return action
 
             action = await self.decide(world)
-            self._notify_bridge(
-                {"type": "AGENT_LOG", "agent": self.country_id, "message": f"Invalid model args: {exc}. Fallback."}
-            )
             return action
 
         action = Action(
@@ -473,5 +429,4 @@ class CountryAgent(BaseAgent):
         )
 
         self._last_action = (action.type, action.target_id, world.turn)
-        self._notify_bridge(self._action_payload(action))
         return action
