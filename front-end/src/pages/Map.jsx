@@ -1,10 +1,13 @@
 import './sass/Map.sass'
 import WorldMapLeaflet from '../components/WorldMap'
 import fetchCountries from '../hooks/countries'
+import fetchAllRelations from '../hooks/relations'
+import cleanConns from '../utils/cleanConnections'
 import { useEffect, useState, useRef } from 'react'
 
 const Map = () => {
     const [countries, setCountries] = useState([]);
+    const [connections, setConnections] = useState([]);
     const [error, setError] = useState(null);
     const [messages, setMessages] = useState([
         {sender: "USA", content: "Hello!"},
@@ -32,25 +35,21 @@ const Map = () => {
         if (hasFetched.current) return;
         hasFetched.current = true;
 
-        async function getCountries() {
+        async function fetchData() {
             try {
-                const data = await fetchCountries();
-                setCountries(data);
+                const data_countries = await fetchCountries();
+                const data_relations = await fetchAllRelations();
+                
+                setCountries(data_countries);
+                setConnections(data_relations);
             } catch (err) {
                 setError(err.message);
             }
         }
 
-        getCountries();
+        fetchData();
     }, []);
-
-    const connections = [
-        { source: {id: "US", lat: 38.8977, lon: -77.0365}, target: {id: "MX", lat: 19.4326, lon: -99.1332}, color: "red", width: 2 },
-        { source: {id: "US", lat: 38.8977, lon: -77.0365}, target: {id: "BR", lat: -15.7939, lon: -47.8828}, color: "orange", width: 3 },
-        { source: {id: "MX", lat: 19.4326, lon: -99.1332}, target: {id: "BR", lat: -15.7939, lon: -47.8828}, color: "green", width: 1.5 }
-
-    ];
-
+    
     return (
         <div className="world-map">
             
