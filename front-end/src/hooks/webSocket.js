@@ -15,8 +15,6 @@ const useWebSocket = () => {
                 ? apiUrl.replace("https", "wss") + "/ws"
                 : apiUrl.replace("http", "ws") + "/ws";
 
-        console.log("Connecting to WebSocket at:", WS_URL);
-
         const socket = new WebSocket(WS_URL);
 
         socket.onopen = () => {
