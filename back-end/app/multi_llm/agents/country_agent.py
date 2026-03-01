@@ -36,7 +36,6 @@ class CountryAgent(BaseAgent):
         super().__init__(country_id=country_id, country_name=country_name)
         self.prompt_text = self._load_prompt(prompt_path) if prompt_path else ""
 
-        # IMPORTANT: use independent RNG that ignores random.seed(...) in debug scripts
         self._rng = secrets.SystemRandom()
 
         # last action cooldown
@@ -100,7 +99,6 @@ class CountryAgent(BaseAgent):
         weights = []
         for tid in targets:
             rel = self._get_relation(world, tid)
-            # prefer extremes a bit + noise
             w = 0.8 + abs(rel) / 60.0 + self._rng.uniform(-0.20, 0.20)
             weights.append(max(0.01, w))
 
@@ -147,7 +145,7 @@ class CountryAgent(BaseAgent):
         if "reason" not in args or not args.get("reason"):
             args["reason"] = f"{tool_name} selected by model"
 
-        # enforce max length (matches your Pydantic constraint)
+        # enforce max length
         MAX_REASON = 280
         reason = str(args.get("reason", ""))
         if len(reason) > MAX_REASON:
@@ -262,10 +260,9 @@ class CountryAgent(BaseAgent):
             tool_name = tool_name.strip().upper()
             return tool_name, tc
 
-        # --- 1) First attempt ---
         tool_name, tool_call = await _call_and_normalize(messages, temperature, top_p)
-
-        # --- 2) Tool disallowed -> retry once -> else fallback ---
+        
+        # Tools = Actions
         if tool_name not in tool_specs:
             fix_messages = messages + [
                 {
@@ -284,9 +281,7 @@ class CountryAgent(BaseAgent):
             else:
                 priority = ["TRADE", "SANCTION", "PROPOSE_ALLIANCE", "DECLARE_WAR", "RESPOND_ALLIANCE"]
                 tool_name = next((t for t in priority if t in tool_specs), next(iter(tool_specs.keys())))
-                # mantenemos tool_call como está; validaremos args contra tool_name abajo
 
-        # --- 3) ALWAYS define these before validate ---
         args_model = tool_specs[tool_name]["args_model"]
         validate_fn = tool_specs[tool_name]["validate"]
         normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_name)
@@ -294,7 +289,7 @@ class CountryAgent(BaseAgent):
         if forced_mode and tool_name == "RESPOND_ALLIANCE":
             normalized_args.setdefault("target_id", forced_requester)
 
-        # --- 4) Validate args; if invalid -> retry once (tool must be allowed) ---
+        # Validate args
         try:
             args = args_model.model_validate(normalized_args)
             validate_fn(args, world, self.country_id)
