@@ -7,7 +7,7 @@ from app.multi_llm.agents.registry import AGENTS
 
 class Orchestrator:
     """
-    Turn manager. Uses a fixed list of agents (USA/CHI/RUS).
+    Turn manager. Uses a fixed list of agents (USA/CHN/RUS).
     """
 
     def __init__(self):

@@ -63,7 +63,7 @@ def seed_if_empty(db: Session) -> None:
     #             n_habitants=330, latitude=38.0, longitude=-97.0,
     #         ),
     #         Country(
-    #             id="CHI", name="China",
+    #             id="CHN", name="China",
     #             economy=85, social=55, demography=60,
     #             technology=80, military_power=75,
     #             n_habitants=1400, latitude=35.0, longitude=103.0,
@@ -80,9 +80,9 @@ def seed_if_empty(db: Session) -> None:
 
     # db.add_all(
     #     [
-    #         Relationship(country_1="USA", country_2="CHI", relation=0),
+    #         Relationship(country_1="USA", country_2="CHN", relation=0),
     #         Relationship(country_1="USA", country_2="RUS", relation=0),
-    #         Relationship(country_1="CHI", country_2="RUS", relation=0),
+    #         Relationship(country_1="CHN", country_2="RUS", relation=0),
     #     ]
     # )
     # db.commit()

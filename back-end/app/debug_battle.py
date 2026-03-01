@@ -54,7 +54,7 @@ N_TURNS = 3
 # How many countries in the match
 N_COUNTRIES_IN_MATCH = 5
 
-# If True, sample only from countries.selected == True (if you use that flag)
+# If True, sample only from countries.selected == True
 USE_SELECTED_ONLY = False
 
 
