@@ -12,6 +12,7 @@ class CountryBase(BaseModel):
     n_habitants: int = Field(default=0, ge=0)
     latitude: float = Field(default=0.0, ge=-90.0, le=90.0)
     longitude: float = Field(default=0.0, ge=-180.0, le=180.0)
+    selected: bool = Field(default=False)
 
 class CountryCreate(CountryBase):
     id: str = Field(..., min_length=3, max_length=3, description="Country code must be 3 letters long")

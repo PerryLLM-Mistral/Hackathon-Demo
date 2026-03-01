@@ -18,10 +18,19 @@ def create_country(country: schemas.CountryCreate, db: Session = Depends(get_db)
     # Delegate creation logic to the controller
     return CountryController.create(db, country)
 
+
 # GET ALL COUNTRIES
 @router.get("/", response_model=List[schemas.Country])
 def get_countries(db: Session = Depends(get_db)):
     return CountryController.get_all(db)
+
+
+# GET ALL SELECTED COUNTRIES
+@router.get("/selected", response_model=List[schemas.Country])
+def get_selected_countries(db: Session = Depends(get_db)):
+    # Get the list of countries currently selected by the user
+    return CountryController.get_selected(db)
+
 
 # GET COUNTRY BY ID
 @router.get("/{country_id}", response_model=schemas.Country)
