@@ -15,7 +15,7 @@ from app.simulation.state_store import load_world_state, persist_turn_actions
 # -------------------------
 # Bridge notifications
 # -------------------------
-def _notify_bridge(self, payload: dict):
+def _notify_bridge(payload: dict):
     try:
         requests.post(
             "http://127.0.0.1:8000/events/broadcast",
