@@ -22,7 +22,6 @@ class CountryAgent(BaseAgent):
     """
     Agent for a single country.
 
-    - decide: heuristic fallback (stochastic)
     - decide_llm: tool-based LLM decision + exploration:
         * MUST RESPOND to pending alliances
         * sometimes "conflict explore" to force SANCTION/WAR consideration
@@ -157,6 +156,31 @@ class CountryAgent(BaseAgent):
 
         return args
     
+        # -------------------------
+    # Match guards (hard constraints)
+    # -------------------------
+    def _match_country_ids(self, world: WorldState) -> set[str]:
+        return {c.id for c in world.countries}
+
+    def _assert_actor_in_match(self, world: WorldState) -> None:
+        ids = self._match_country_ids(world)
+        if self.country_id not in ids:
+            raise ValueError(f"Actor {self.country_id} is not in match countries: {sorted(ids)}")
+
+    def _assert_target_in_match(self, world: WorldState, target_id: Optional[str], tool_name: str) -> None:
+        # Tools without target are allowed (e.g., PASS if ever enabled)
+        if not target_id:
+            return
+        ids = self._match_country_ids(world)
+        if target_id not in ids:
+            raise ValueError(
+                f"Invalid target_id '{target_id}' for tool {tool_name}. "
+                f"Allowed target_ids: {sorted(ids)}"
+            )
+        if target_id == self.country_id:
+            raise ValueError(f"Invalid target_id '{target_id}': cannot target self for tool {tool_name}")
+
+
     # -------------------------
     # LLM tool-based decision
     # -------------------------
@@ -164,6 +188,13 @@ class CountryAgent(BaseAgent):
         pending_requesters = self._pending_requesters_for_me(world)
         forced_mode = bool(pending_requesters)
         forced_requester = pending_requesters[0] if forced_mode else None
+
+        # Hard invariant: the agent itself must be one of the match countries
+        self._assert_actor_in_match(world)
+
+        # If forced requester exists, it must also be in the match countries
+        if forced_requester is not None:
+            self._assert_target_in_match(world, forced_requester, "RESPOND_ALLIANCE(forced)")
 
         nonce = self._rng.randint(1, 1_000_000)
         payload_nonce = self._rng.randint(1, 1_000_000)
@@ -285,9 +316,12 @@ class CountryAgent(BaseAgent):
         args_model = tool_specs[tool_name]["args_model"]
         validate_fn = tool_specs[tool_name]["validate"]
         normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_name)
+        # Hard constraint BEFORE pydantic/validate_fn: target (if any) must be in match
+        self._assert_target_in_match(world, normalized_args.get("target_id"), tool_name)
 
         if forced_mode and tool_name == "RESPOND_ALLIANCE":
             normalized_args.setdefault("target_id", forced_requester)
+            self._assert_target_in_match(world, normalized_args.get("target_id"), tool_name)
 
         # Validate args
         try:
@@ -316,9 +350,11 @@ class CountryAgent(BaseAgent):
             args_model = tool_specs[tool_name]["args_model"]
             validate_fn = tool_specs[tool_name]["validate"]
             normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_name)
+            self._assert_target_in_match(world, normalized_args.get("target_id"), tool_name)
 
             if forced_mode and tool_name == "RESPOND_ALLIANCE":
                 normalized_args.setdefault("target_id", forced_requester)
+                self._assert_target_in_match(world, normalized_args.get("target_id"), tool_name)
 
             args = args_model.model_validate(normalized_args)
             validate_fn(args, world, self.country_id)
