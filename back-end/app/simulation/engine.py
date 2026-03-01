@@ -121,11 +121,17 @@ def apply_action(world: WorldState, action: Action) -> None:
         "intensity": action.intensity,
         "actor_stats": {
             "economy": actor.economy,
-            "military": actor.military_power
+            "military": actor.military_power,
+            "social": actor.social,
+            "demography": actor.demography,
+            "technology": actor.technology
         } if actor else None,
         "target_stats": {
             "economy": target.economy,
-            "military": target.military_power
+            "military": target.military_power,
+            "social": target.social,
+            "demography": target.demography,
+            "technology": target.technology
         } if target else None
     })
 
