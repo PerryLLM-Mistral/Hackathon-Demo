@@ -4,34 +4,23 @@ import WorldMapSelection from '../components/SelectCountryMap'
 import fetchCountries from '../hooks/countries'
 import fetchAllRelations from '../hooks/relations'
 import cleanConns from '../utils/cleanConnections'
+import useWebSocket from '../hooks/webSocket'
 import { useEffect, useState, useRef } from 'react'
 
 const Map = () => {
     const [countries, setCountries] = useState([]);
     const [selectedCountries, setSelectedCountries] = useState([]);
     const [connections, setConnections] = useState([]);
+    const [messages, setMessages] = useState([]);
     const [error, setError] = useState(null);
-    const [messages, setMessages] = useState([
-        {sender: "USA", content: "Hello!"},
-        {sender: "USA", content: "How are you?"},
-        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
-        {sender: "USA", content: "Hello!"},
-        {sender: "USA", content: "How are you?"},
-        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
-        {sender: "USA", content: "Hello!"},
-        {sender: "USA", content: "How are you?"},
-        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
-        {sender: "USA", content: "Hello!"},
-        {sender: "USA", content: "How are you?"},
-        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
-        {sender: "USA", content: "Hello!"},
-        {sender: "USA", content: "How are you?"},
-        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
-        {sender: "USA", content: "Hello!"},
-        {sender: "USA", content: "How are you?"},
-        {sender: "RUS", content: "This is a fixed-size chat. aaaaa aaaaaaa aaaaaaa aaaaaa aaaa"},
-    ]);
     const hasFetched = useRef(false);
+    const msg = useWebSocket();
+
+    useEffect(() => {
+        if (!msg) return;
+        console.log(msg);
+        setMessages(prev => [...prev, {sender: msg.source.id, content: msg}])
+    }, [msg]);
 
     useEffect(() => {
         if (hasFetched.current) return;
