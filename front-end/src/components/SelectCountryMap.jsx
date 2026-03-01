@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Polyline, GeoJSON } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
+import resetCountries from '../hooks/reset'
 import worldGeo from '../assets/world.geo.json'
 
 const WorldMapSelection = ({ countriesData, setCountries }) => {
@@ -83,14 +84,15 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
         });
     };
 
-    const sendCountries = () => {
+    const sendCountries = async () => {
         if (simulationCountries.length < 5 || simulationCountries.length > 5) {
             console.log(simulationCountries.length);
             alert("Select only 5 countries");
             return;
         }
 
-        setCountries(simulationCountries)
+        const reset = await resetCountries();
+        setCountries(simulationCountries);
     }
 
     return (
