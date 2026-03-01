@@ -5,6 +5,8 @@ from app.database import get_db
 from app.src.models import models
 from app.src.schemas import schemas
 from app.src.services.services import CountryController
+from app.src.routes.simulation import sim_engine, RUN_ID
+
 
 router = APIRouter(prefix="/countries", tags=["Countries"])
 
@@ -41,6 +43,8 @@ def select_multiple_countries(country_ids: List[str] = Body(...), db: Session = 
         if not success:
             raise HTTPException(status_code=400, detail="Error updating selection")
         
+        sim_engine.force_reload(db, RUN_ID)
+
         return {"status": "success", "message": f"{len(country_ids)} selected countries"}
     
     except Exception as e:

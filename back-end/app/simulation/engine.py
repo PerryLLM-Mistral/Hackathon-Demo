@@ -203,5 +203,5 @@ class SimulationEngine:
             "turn_id": turn_id,
             "turn": applied_turn,
             "actions": [a.model_dump() for a in actions],
-            "world": world,
+            "world": world.model_dump(mode="json"),
         }
