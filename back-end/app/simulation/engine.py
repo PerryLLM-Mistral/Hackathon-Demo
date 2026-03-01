@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Optional
+import requests
 
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,20 @@ from app.multi_llm.schemas.world import WorldState, RelationState
 from app.multi_llm.schemas.action import Action, ActionType
 from app.simulation.effects import get_effect
 from app.simulation.state_store import load_world_state, persist_turn_actions
+
+
+# -------------------------
+# Bridge notifications
+# -------------------------
+def _notify_bridge(payload: dict):
+    try:
+        requests.post(
+            "http://127.0.0.1:8000/events/broadcast",
+            json={"data": payload},
+            timeout=1,
+        )
+    except Exception as e:
+        print(f"DEBUG [Bridge Error]: Could not send to browser. {e}")
 
 
 def clamp_int(x: int, lo: int, hi: int) -> int:
@@ -42,6 +57,12 @@ def find_country(world: WorldState, country_id: str):
 
 def apply_action(world: WorldState, action: Action) -> None:
     if action.type == ActionType.PASS:
+        _notify_bridge({
+            "type": "AGENT_ACTION",
+            "agent": action.actor_id,
+            "action_type": "PASS",
+            "reason": action.reason
+        })
         return
 
     if not action.target_id:
@@ -53,6 +74,16 @@ def apply_action(world: WorldState, action: Action) -> None:
         if getattr(rel, "pending_alliance_from", None) is not None:
             return
         rel.pending_alliance_from = action.actor_id
+
+        _notify_bridge({
+            "type": "AGENT_ACTION",
+            "agent": action.actor_id,
+            "action_type": "PROPOSE_ALLIANCE",
+            "target": action.target_id,
+            "new_relation": rel.relation,
+            "reason": action.reason
+        })
+
         if hasattr(rel, "pending_alliance_turn"):
             rel.pending_alliance_turn = world.turn
         return
@@ -79,6 +110,30 @@ def apply_action(world: WorldState, action: Action) -> None:
         entity.demography = clamp_int(entity.demography + eff.demography * action.intensity, 0, 100)
         entity.technology = clamp_int(entity.technology + eff.technology * action.intensity, 0, 100)
         entity.military_power = clamp_int(entity.military_power + eff.military_power * action.intensity, 0, 100)
+
+    _notify_bridge({
+        "type": "AGENT_ACTION",
+        "agent": action.actor_id,
+        "action_type": action.type.value,
+        "target": action.target_id,
+        "new_relation": rel.relation,
+        "reason": action.reason,
+        "intensity": action.intensity,
+        "actor_stats": {
+            "economy": actor.economy,
+            "military": actor.military_power,
+            "social": actor.social,
+            "demography": actor.demography,
+            "technology": actor.technology
+        } if actor else None,
+        "target_stats": {
+            "economy": target.economy,
+            "military": target.military_power,
+            "social": target.social,
+            "demography": target.demography,
+            "technology": target.technology
+        } if target else None
+    })
 
 
 class SimulationEngine:
