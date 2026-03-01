@@ -1,10 +1,9 @@
 import { useEffect, useState, useMemo } from 'react'
 import { MapContainer, TileLayer, Polyline, GeoJSON } from 'react-leaflet'
-import cleanConns from '../utils/cleanConnections'
 import 'leaflet/dist/leaflet.css'
 import worldGeo from '../assets/world.geo.json'
 
-const WorldMapLeaflet = ({ countriesData, connections }) => {
+const WorldMapSelection = ({ countriesData, setCountries }) => {
     const [selectedCountries, setSelectedCountries] = useState([])
     const countryStyle = {
         color: "#152242",
@@ -12,11 +11,6 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
         fillColor: "#152242",
         fillOpacity: 0.2,
     }
-
-    const cleanConnections = useMemo(() => {
-        if (!countriesData.length || !connections.length) return []
-        return cleanConns(connections, countriesData)
-    }, [countriesData, connections])
 
     useEffect(() => {
         const ids = countriesData.map((country) => country.id)
@@ -59,6 +53,10 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
             });
         });
 
+        layer.on("click", function (e) {
+            
+        });
+
         layer.on("mouseout", function () {
             layer.setStyle(countryStyle);
         });
@@ -70,7 +68,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
             <MapContainer 
                 center={[20, 0]} 
                 minZoom={2}
-                maxZoom={10}
+                maxZoom={5}
                 zoom={2} 
                 zoomControl={false}
                 worldCopyJump={false}
@@ -85,16 +83,9 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <GeoJSON key={selectedCountries.join('-')} data={filteredGeo} style={countryStyle} onEachFeature={onEachFeature}/>
-                {cleanConnections.map((conn, idx) => (
-                    <Polyline
-                        key={idx}
-                        positions={[[conn.source.lat, conn.source.lon], [conn.target.lat, conn.target.lon]]}
-                        pathOptions={{ color: conn.color || 'blue', weight: conn.width || 2 }}
-                    />
-                ))}
             </MapContainer>
         </>
     );
 };
 
-export default WorldMapLeaflet;
+export default WorldMapSelection;
