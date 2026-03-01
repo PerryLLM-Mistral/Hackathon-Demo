@@ -11,21 +11,28 @@ from app.multi_llm.llm.provider import MistralProvider
 
 class Orchestrator:
     def __init__(self, use_llm: bool = True):
-        load_dotenv()  # asegura env en local
+        load_dotenv()
 
         self.provider: Optional[MistralProvider] = None
+
+        self.active_agents = []
+
         if use_llm:
             try:
                 self.provider = MistralProvider()
             except Exception:
-                # si no hay key o falla init, cae a heurístico sin romper el server
                 self.provider = None
+
+    def reload_agents(self, world: WorldState):
+        self.active_agents = get_selected_agents(world)
 
     async def decide_turn(self, world: WorldState) -> List[Action]:
         actions: List[Action] = []
-        active_agents = get_selected_agents(world)
 
-        for agent in active_agents:
+        if not self.active_agents:
+            self.reload_agents(world)
+
+        for agent in self.active_agents:
             if self.provider is None:
                 action = await agent.decide(world)
             else:
