@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, String, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Integer, Float, String, ForeignKey, CheckConstraint, Boolean
 from app.database import Base
 
 class Country(Base):
@@ -14,6 +14,7 @@ class Country(Base):
     n_habitants = Column(Integer, default=0, nullable=False)
     latitude = Column(Float, default=0.0, nullable=False)
     longitude = Column(Float, default=0.0, nullable=False)
+    selected = Column(Boolean, default=False, nullable=False)
 
 class Relationship(Base):
     __tablename__ = "relationships"

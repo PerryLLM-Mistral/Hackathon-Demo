@@ -33,6 +33,12 @@ class CountryController:
         db.refresh(new_country)
 
         return new_country
+    
+    @staticmethod
+    def get_selected(db: Session):
+        # Retrieve only the countries that have the 'selected' flag set to True
+        return db.query(models.Country).filter(models.Country.selected == True).all()
+
 
 
 # CONTROLLER FOR RELATIONSHIP MODEL

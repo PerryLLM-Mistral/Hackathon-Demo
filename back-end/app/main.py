@@ -4,8 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.multi_llm.orchestrator import Orchestrator
 from app.simulation.engine import SimulationEngine
 from app.database import engine as db_engine
+from app.database import SessionLocal
 from app.src.models import models
+<<<<<<< HEAD
 from app.src.routes import countries, relationships, simulation, ws, events, turns, country_state_history, relationship_history, action_history
+=======
+from app.src.routes import countries, relationships, simulation, ws, events, reset
+>>>>>>> 6aae03d313aa8770f7371e30dc36798f19609274
 from app.scripts.seed_db import seed 
 
 # Create the database tables
@@ -18,7 +23,6 @@ app = FastAPI()
 # ===============================
 @app.on_event("startup")
 async def startup_event():
-    from app.database import SessionLocal
     db = SessionLocal()
     country_count = db.query(models.Country).count()
     db.close()
@@ -33,8 +37,8 @@ async def startup_event():
 # CORS CONFIGURATION
 # ===============================
 origins = [
-    "http://172.24.0.3:5173",   # Local Vite
-    "http://react_frontend:3000"  # Docker Compose
+    "http://172.23.0.2:5173",   # Local Vite
+    "http://react_frontend:5173"  # Docker Compose
 ]
 
 app.add_middleware(
@@ -59,8 +63,12 @@ app.include_router(relationships.router)
 app.include_router(simulation.router)
 app.include_router(ws.router)
 app.include_router(events.router)
+<<<<<<< HEAD
 
 app.include_router(turns.router)
 app.include_router(country_state_history.router)
 app.include_router(relationship_history.router)
 app.include_router(action_history.router)
+=======
+app.include_router(reset.router)
+>>>>>>> 6aae03d313aa8770f7371e30dc36798f19609274
