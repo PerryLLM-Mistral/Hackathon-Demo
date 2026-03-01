@@ -7,6 +7,7 @@ import cleanConns from '../utils/cleanConnections'
 import useWebSocket from '../hooks/webSocket'
 import useSimulation from '../hooks/useSimulation'
 import updateValues from '../utils/changeConnections'
+import changeValues from '../utils/changeCountries'
 import { useEffect, useState, useRef } from 'react'
 
 const Map = () => {
@@ -20,8 +21,15 @@ const Map = () => {
 
     useEffect(() => {
         if (!msg) return;
-        setMessages(prev => [...prev, {sender: msg.source.id, content: msg.metadata.reason}])
+        setMessages(prev => [...prev, {
+            sender: msg.source.id, 
+            target: msg.target.id,
+            action: msg.metadata.actionType,
+            content: msg.metadata.reason,
+        }])
         updateValues(connections, setConnections, msg)
+        changeValues(countries, setSelectedCountries, msg.source)
+        changeValues(countries, setSelectedCountries, msg.target)
     }, [msg]);
 
     useEffect(() => {
@@ -62,7 +70,9 @@ const Map = () => {
                         <p className="message">No messages generated</p>
                     }
                     {messages.map((msg, idx) =>(
-                        <p key={idx} className="message"><strong>{msg.sender} </strong>{msg.content}</p>
+                        msg.target.length == 0 ? ( 
+                            <p key={idx} className="message"><strong>{msg.sender}<br/>{msg.action} </strong>{msg.content}</p>) : (
+                            <p key={idx} className="message"><strong>{msg.sender}->{msg.target}<br/>{msg.action} </strong>{msg.content}</p>)
                     ))}
                 </div>
                 <div className="simulation">
