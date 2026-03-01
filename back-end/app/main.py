@@ -34,6 +34,9 @@ async def startup_event():
 # CORS CONFIGURATION
 # ===============================
 origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+
     "http://172.23.0.2:5173",   # Local Vite
     "http://react_frontend:5173"  # Docker Compose
 ]
