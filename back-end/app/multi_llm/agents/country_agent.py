@@ -138,148 +138,29 @@ class CountryAgent(BaseAgent):
     def _normalize_tool_arguments(self, raw_arguments: object, tool_name: str) -> dict:
         if not isinstance(raw_arguments, dict):
             return {}
+
         args = dict(raw_arguments)
+
+        # normalize target_id
         if "target_id" not in args and "target" in args:
             args["target_id"] = args["target"]
+
+        # ensure reason exists
         if "reason" not in args or not args.get("reason"):
             args["reason"] = f"{tool_name} selected by model"
+
+        # enforce max length (matches your Pydantic constraint)
+        MAX_REASON = 280
+        reason = str(args.get("reason", ""))
+        if len(reason) > MAX_REASON:
+            args["reason"] = reason[: MAX_REASON - 3].rstrip() + "..."
+
+        # default intensity
         if "intensity" not in args:
             args["intensity"] = 1
+
         return args
-
-    # -------------------------
-    # Heuristic fallback policy (no LLM)
-    # -------------------------
-    async def decide(self, world: WorldState) -> Action:
-        # MUST RESPOND
-        pending = self._pending_requesters_for_me(world)
-        if pending:
-            requester = pending[0]
-            rel = self._get_relation(world, requester)
-
-            # National interest
-            req_econ = self._get_stat(world, requester, "economy")
-            my_social = self._get_stat(world, self.country_id, "social")
-
-            # If the country is poor (< 30) or if the citizens are not satisfied (social < 20), reject
-            if req_econ < 30 or my_social < 20:
-                accept = False
-                reason = "Target economy unstable or domestic social crisis."
-            else:
-                p_accept = 1.0 / (1.0 + exp(-(rel / 18.0)))
-                accept = self._rng.random() < p_accept
-                reason = "Strategic alliance decision based on relations."
-
-            action = Action(
-                actor_id=self.country_id,
-                type=ActionType.RESPOND_ALLIANCE,
-                target_id=requester,
-                accept=accept,
-                reason=reason,
-                intensity=1,
-            )
-            self._last_action = (action.type, action.target_id, world.turn)
-            return action
-
-        # small stochastic pass
-        if self._rng.random() < 0.05:
-            action = Action(actor_id=self.country_id, type=ActionType.PASS, reason="Strategic pause", intensity=1)
-            self._last_action = (action.type, action.target_id, world.turn)
-            return action
-
-        target_id = self._choose_target_stochastic(world)
-        if target_id is None:
-            action = Action(actor_id=self.country_id, type=ActionType.PASS, reason="No targets", intensity=1)
-            self._last_action = (action.type, action.target_id, world.turn)
-            return action
-
-        rel = self._get_relation(world, target_id)
-        rel_state = self._get_relation_state(world, target_id)
-        has_pending = bool(getattr(rel_state, "pending_alliance_from", None)) if rel_state else False
-
-        my_mil = self._military(world, self.country_id)
-        t_mil = self._military(world, target_id)
-        mil_adv = my_mil - t_mil
-
-        explore_conflict = self._rng.random() < self.conflict_explore_prob
-
-        # weights (cooperation still likely, but conflict is reachable from neutral)
-        w_trade = 0.50 + (0.20 if rel >= -10 else 0.0)
-        w_alliance = 0.10 + (0.25 if rel >= 5 else 0.0)
-
-        # sanctions: start around mild negativity
-        w_sanction = 0.12 + max(0.0, (-rel) / 35.0)     # grows from 0 -> 1 as rel ~ -35
-        # war: grows when hostility exists, earlier if strong military advantage
-        w_war = 0.05 + max(0.0, (-rel - 15) / 35.0)     # grows from rel <= -15
-
-        my_econ = self._get_stat(world, self.country_id, "economy")
-        t_econ = self._get_stat(world, target_id, "economy")
-        mil_diff = self._military(world, self.country_id) - self._military(world, target_id)
-
-        if mil_adv >= 10:
-            w_war += 0.12
-            w_sanction += 0.05
-
-        if explore_conflict:
-            w_sanction += 0.18
-            w_war += 0.10
-            w_trade *= 0.70
-            w_alliance *= 0.70
-
-        if my_econ < 30:
-            w_trade += 0.5
-            w_war = 0.01     # Not enough money for war
-
-        # If the objective is military strong, low war probability because of fear
-        if mil_diff < -20:
-            w_war *= 0.1
-            w_sanction += 0.2
-
-        candidates: list[tuple[ActionType, float]] = [
-            (ActionType.TRADE, w_trade),
-            (ActionType.PROPOSE_ALLIANCE, w_alliance),
-            (ActionType.SANCTION, w_sanction),
-            (ActionType.DECLARE_WAR, w_war),
-        ]
-
-        if has_pending:
-            candidates = [(a, w) for a, w in candidates if a != ActionType.PROPOSE_ALLIANCE]
-
-        # cooldown: penalize repeating same (type,target) immediately
-        if self._last_action is not None:
-            last_type, last_target, last_turn = self._last_action
-            if last_turn == world.turn - 1 and last_target == target_id:
-                candidates = [(a, w * (0.12 if a == last_type else 1.0)) for a, w in candidates]
-
-        total = sum(w for _, w in candidates)
-        r = self._rng.random() * total
-        acc = 0.0
-        chosen = candidates[-1][0]
-        for a, w in candidates:
-            acc += w
-            if r <= acc:
-                chosen = a
-                break
-
-        if chosen == ActionType.DECLARE_WAR:
-            intensity = 3 if (mil_adv >= 10 and self._rng.random() < 0.7) else 2
-        elif chosen == ActionType.SANCTION:
-            intensity = 2 if self._rng.random() < 0.65 else 1
-        elif chosen in {ActionType.TRADE, ActionType.PROPOSE_ALLIANCE}:
-            intensity = 1 if self._rng.random() < 0.75 else 2
-        else:
-            intensity = 1
-
-        action = Action(
-            actor_id=self.country_id,
-            type=chosen,
-            target_id=target_id,
-            reason=f"Fallback stochastic policy: {chosen.value}",
-            intensity=intensity,
-        )
-        self._last_action = (action.type, action.target_id, world.turn)
-        return action
-
+    
     # -------------------------
     # LLM tool-based decision
     # -------------------------
@@ -288,18 +169,13 @@ class CountryAgent(BaseAgent):
         forced_mode = bool(pending_requesters)
         forced_requester = pending_requesters[0] if forced_mode else None
 
-        # epsilon-greedy bypass (but never bypass forced respond)
-        if not forced_mode and self._rng.random() < self.epsilon_bypass_llm:
-            action = await self.decide(world)
-            return action
-
         nonce = self._rng.randint(1, 1_000_000)
         payload_nonce = self._rng.randint(1, 1_000_000)
 
         world_payload = {
             "turn": world.turn,
             "self": self.country_id,
-            "nonce": payload_nonce,  # IMPORTANT: variation inside WORLD payload
+            "nonce": payload_nonce,
             "countries": [
                 {"id": c.id, "name": c.name, "economy": c.economy, "military_power": c.military_power}
                 for c in world.countries
@@ -315,7 +191,6 @@ class CountryAgent(BaseAgent):
             ],
         }
 
-        # occasionally "conflict explore" by restricting tools (only in normal mode)
         explore_conflict = (not forced_mode) and (self._rng.random() < self.conflict_explore_prob)
 
         if forced_mode:
@@ -337,16 +212,15 @@ class CountryAgent(BaseAgent):
             top_p = 0.9
         else:
             allowed = set(TOOL_SPECS.keys())
+            allowed.discard("PASS")
 
-            # cooldown: avoid same tool consecutive turn
             if self._last_action is not None:
                 last_type, _, last_turn = self._last_action
                 if last_turn == world.turn - 1:
-                    allowed.discard(last_type.value)
+                    allowed.discard(getattr(last_type, "name", str(last_type)))
 
-            # conflict exploration: sometimes focus the model on sanction/war
             if explore_conflict:
-                allowed = allowed.intersection({"SANCTION", "DECLARE_WAR", "TRADE", "PASS"})
+                allowed = allowed.intersection({"SANCTION", "DECLARE_WAR", "TRADE"})
 
             tool_specs = {k: v for k, v in TOOL_SPECS.items() if k in allowed}
             tools_block = self._tools_block_for(tool_specs)
@@ -354,8 +228,7 @@ class CountryAgent(BaseAgent):
             system_prompt = (
                 f"You are {self.country_name} ({self.country_id}).\n"
                 "Choose exactly ONE tool that best serves your interests this turn.\n"
-                "CRITICAL: Your 'reason' must be a unique, context-aware sentence. "
-                "Do not use generic phrases. Reference your current economy, military power or specific hostility levels in your explanation.\n"
+                "CRITICAL: Your 'reason' must be a unique, context-aware sentence.\n"
                 "Rules:\n"
                 "- Do NOT repeat the same tool in consecutive turns.\n"
                 "- Only choose DECLARE_WAR if relation <= -30.\n"
@@ -364,11 +237,12 @@ class CountryAgent(BaseAgent):
                 "- Do NOT ally with 'poor' countries (economy < 30).\n"
                 "- If your economy is low, prioritize TRADE to recover funds.\n"
                 "- Avoid DECLARE_WAR if the target has much higher military_power than you.\n"
-                f"- Exploration mode: {explore_conflict} (if true, prefer SANCTION/DECLARE_WAR sometimes).\n\n"
+                "- Keep \"reason\" <= 200 characters (hard limit 280).\n"
+                f"- Exploration mode: {explore_conflict}.\n\n"
                 f"(Decision nonce: {nonce})\n\n"
                 f"{self.prompt_text}\n\n"
                 f"{tools_block}\n"
-                'Output JSON: { "tool": "DECLARE_WAR|PROPOSE_ALLIANCE|RESPOND_ALLIANCE|TRADE|SANCTION|PASS", "arguments": { ... } }\n'
+                'Output JSON: { "tool": "DECLARE_WAR|PROPOSE_ALLIANCE|RESPOND_ALLIANCE|TRADE|SANCTION", "arguments": { ... } }\n'
             )
             temperature = 0.95
             top_p = 0.95
@@ -378,50 +252,87 @@ class CountryAgent(BaseAgent):
             {"role": "user", "content": "WORLD:\n" + json.dumps(world_payload, indent=2)},
         ]
 
-        tool_call = await provider.complete_json(
-            messages=messages,
-            schema=ToolCall,
-            temperature=temperature,
-            top_p=top_p,
-        )
+        async def _call_and_normalize(msgs, temp, tp) -> tuple[str, ToolCall]:
+            tc = await provider.complete_json(
+                messages=msgs,
+                schema=ToolCall,
+                temperature=temp,
+                top_p=tp,
+            )
+            raw_tool = tc.tool
+            tool_name = raw_tool.value if isinstance(raw_tool, ActionType) else str(raw_tool)
+            tool_name = tool_name.strip().upper()
+            return tool_name, tc
 
-        # disallowed -> heuristic fallback
-        if tool_call.tool not in tool_specs:
-            action = await self.decide(world)
-            return action
+        # --- 1) First attempt ---
+        tool_name, tool_call = await _call_and_normalize(messages, temperature, top_p)
 
-        args_model = tool_specs[tool_call.tool]["args_model"]
-        validate_fn = tool_specs[tool_call.tool]["validate"]
-        normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_call.tool)
+        # --- 2) Tool disallowed -> retry once -> else fallback ---
+        if tool_name not in tool_specs:
+            fix_messages = messages + [
+                {
+                    "role": "system",
+                    "content": (
+                        "Your previous tool choice was INVALID for this turn. "
+                        f"You MUST choose one of: {sorted(tool_specs.keys())}. "
+                        "Return ONLY valid JSON with keys: tool, arguments."
+                    ),
+                }
+            ]
+            tool_name2, tool_call2 = await _call_and_normalize(fix_messages, 0.2, 0.9)
 
-        if forced_mode and tool_call.tool == "RESPOND_ALLIANCE":
+            if tool_name2 in tool_specs:
+                tool_name, tool_call = tool_name2, tool_call2
+            else:
+                priority = ["TRADE", "SANCTION", "PROPOSE_ALLIANCE", "DECLARE_WAR", "RESPOND_ALLIANCE"]
+                tool_name = next((t for t in priority if t in tool_specs), next(iter(tool_specs.keys())))
+                # mantenemos tool_call como está; validaremos args contra tool_name abajo
+
+        # --- 3) ALWAYS define these before validate ---
+        args_model = tool_specs[tool_name]["args_model"]
+        validate_fn = tool_specs[tool_name]["validate"]
+        normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_name)
+
+        if forced_mode and tool_name == "RESPOND_ALLIANCE":
             normalized_args.setdefault("target_id", forced_requester)
 
+        # --- 4) Validate args; if invalid -> retry once (tool must be allowed) ---
         try:
             args = args_model.model_validate(normalized_args)
             validate_fn(args, world, self.country_id)
         except (ValidationError, ValueError) as exc:
-            if forced_mode:
-                rel_score = self._get_relation(world, forced_requester)
-                p_accept = 1.0 / (1.0 + exp(-(rel_score / 18.0)))
-                accept = self._rng.random() < p_accept
-                action = Action(
-                    actor_id=self.country_id,
-                    type=ActionType.RESPOND_ALLIANCE,
-                    target_id=forced_requester,
-                    accept=accept,
-                    reason=("Accept (fallback)" if accept else "Reject (fallback)"),
-                    intensity=1,
-                )
-                self._last_action = (action.type, action.target_id, world.turn)
-                return action
+            fix_messages = messages + [
+                {
+                    "role": "system",
+                    "content": (
+                        "Your JSON arguments were INVALID for the chosen tool. "
+                        f"Tool: {tool_name}. Error: {str(exc)}. "
+                        "Fix your JSON and return ONLY valid JSON."
+                    ),
+                }
+            ]
+            tool_name2, tool_call2 = await _call_and_normalize(fix_messages, 0.2, 0.9)
 
-            action = await self.decide(world)
-            return action
+            # If tool changed, it must still be allowed
+            if tool_name2 not in tool_specs:
+                priority = ["TRADE", "SANCTION", "PROPOSE_ALLIANCE", "DECLARE_WAR", "RESPOND_ALLIANCE"]
+                tool_name2 = next((t for t in priority if t in tool_specs), next(iter(tool_specs.keys())))
+
+            tool_name, tool_call = tool_name2, tool_call2
+
+            args_model = tool_specs[tool_name]["args_model"]
+            validate_fn = tool_specs[tool_name]["validate"]
+            normalized_args = self._normalize_tool_arguments(tool_call.arguments, tool_name)
+
+            if forced_mode and tool_name == "RESPOND_ALLIANCE":
+                normalized_args.setdefault("target_id", forced_requester)
+
+            args = args_model.model_validate(normalized_args)
+            validate_fn(args, world, self.country_id)
 
         action = Action(
             actor_id=self.country_id,
-            type=ActionType(tool_call.tool),
+            type=ActionType(tool_name),
             target_id=getattr(args, "target_id", None),
             reason=getattr(args, "reason", "No reason"),
             intensity=getattr(args, "intensity", 1),

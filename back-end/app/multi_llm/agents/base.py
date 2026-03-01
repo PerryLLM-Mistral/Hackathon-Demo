@@ -14,6 +14,8 @@ class BaseAgent(ABC):
         self.country_name = country_name
 
     @abstractmethod
-    async def decide(self, world: WorldState) -> Action:
-        """Must return a valid Action object."""
+    async def decide_llm(self, world: WorldState, provider) -> Action:
+        """
+        Must return a valid Action object using an LLM provider.
+        """
         raise NotImplementedError
