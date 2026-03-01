@@ -72,7 +72,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
             <MapContainer 
                 center={[20, 0]} 
                 minZoom={2}
-                maxZoom={10}
+                maxZoom={5}
                 zoom={2} 
                 zoomControl={false}
                 worldCopyJump={false}
