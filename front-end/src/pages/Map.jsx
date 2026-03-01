@@ -19,7 +19,7 @@ const Map = () => {
     useEffect(() => {
         if (!msg) return;
         console.log(msg);
-        setMessages(prev => [...prev, {sender: msg.source.id, content: msg}])
+        setMessages(prev => [...prev, {sender: msg.source.id, content: msg.metadata.reason}])
     }, [msg]);
 
     useEffect(() => {
