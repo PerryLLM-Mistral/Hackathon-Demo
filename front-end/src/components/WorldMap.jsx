@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { MapContainer, TileLayer, Polyline, GeoJSON, useMap } from 'react-leaflet'
+import { useEffect, useState, useMemo } from 'react'
+import { MapContainer, TileLayer, Polyline, GeoJSON } from 'react-leaflet'
+import cleanConns from '../utils/cleanConnections'
 import 'leaflet/dist/leaflet.css'
 import worldGeo from '../assets/world.geo.json'
 
 const WorldMapLeaflet = ({ countriesData, connections }) => {
-    const [selectedCountries, setSelectedCountries] = useState([])   
+    const [selectedCountries, setSelectedCountries] = useState([])
     const countryStyle = {
         color: "#152242",
         weight: 3,
@@ -12,13 +13,16 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
         fillOpacity: 0.2,
     }
 
+    const cleanConnections = useMemo(() => {
+        if (!countriesData.length || !connections.length) return []
+        return cleanConns(connections, countriesData)
+    }, [countriesData, connections])
+
     useEffect(() => {
         const ids = countriesData.map((country) => country.id)
         setSelectedCountries(ids)
     }, [countriesData])
-
-    console.log(selectedCountries)
-
+    
     const filteredGeo = {
         ...worldGeo,
             features: worldGeo.features.filter((feature) =>
@@ -78,7 +82,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 <GeoJSON key={selectedCountries.join('-')} data={filteredGeo} style={countryStyle} onEachFeature={onEachFeature}/>
-                {connections.map((conn, idx) => (
+                {cleanConnections.map((conn, idx) => (
                     <Polyline
                         key={idx}
                         positions={[[conn.source.lat, conn.source.lon], [conn.target.lat, conn.target.lon]]}
