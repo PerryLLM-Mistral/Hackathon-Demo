@@ -2,96 +2,311 @@
 
 .home
   font-family: system-ui, sans-serif
+  color: $primary-color
 
-  &__hero
-    height: 105dvh
-    background: url('../../assets/home.png') no-repeat center center
-    background-size: cover
-    background-position: center
-    position: relative
-    display: flex
-    justify-content: center
-    align-items: center
-    text-align: center
-    color: white
-
-  &__overlay
-    position: absolute
-    inset: 0
-    background: linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(0,0,0,0.7))
-
-  &__content
-    position: relative
-    z-index: 2
-    max-width: 800px
-    padding: 2rem
-
-    h1
-      font-size: 3rem
-      margin-bottom: 1rem
-
-    p
-      font-size: 1.2rem
-      margin-bottom: 2rem
-      line-height: 1.6
-
-    button
-      padding: 0.9rem 2.5rem
-      background: $primary-color
-      border: none
-      border-radius: 30px
-      color: white
-      font-size: 1rem
-      cursor: pointer
-      transition: 0.3s
-
-      &:hover
-        background: $secondary-color
-        transform: translateY(-2px)
+  // ---------- Layout helpers ----------
+  &__container
+    width: min(1100px, 100%)
+    margin: 0 auto
+    padding: 0 10%
 
   &__section
-    padding: 5rem 10%
+    padding: 5rem 0
     background: white
-    color: $primary-color
-
-    h2
-      font-size: 2rem
-      margin-bottom: 2rem
-
-    p
-      margin-bottom: 1rem
-      line-height: 1.7
-
-    ul
-      list-style: none
-      padding: 0
-
-      li
-        margin-bottom: 0.8rem
-        padding-left: 1rem
-        position: relative
-
-        &::before
-          content: "•"
-          position: absolute
-          left: 0
-          color: $detail-color
 
   &__section--alt
     background: $background-color
 
-.architecture
-  display: grid
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))
-  gap: 2rem
+  &__sectionHeader
+    margin-bottom: 2.5rem
 
-.tech
-  display: flex
-  flex-wrap: wrap
-  gap: 1rem
+  &__h2
+    font-size: clamp(1.8rem, 2.6vw, 2.4rem)
+    margin: 0 0 0.8rem 0
+    letter-spacing: -0.02em
 
-  span
+  &__lead
+    margin: 0
+    line-height: 1.7
+    opacity: 0.85
+    max-width: 70ch
+
+  &__h3
+    font-size: 1.1rem
+    margin: 0 0 0.6rem 0
+
+  &__text
+    margin: 0
+    line-height: 1.7
+    opacity: 0.9
+
+  // ---------- HERO ----------
+  &__hero
+    height: 105dvh
+    position: relative
+    display: flex
+    align-items: center
+    justify-content: center
+    color: white
+    text-align: left
+    background: url('../../assets/home.png') no-repeat center center
+    background-size: cover
+    background-position: center
+
+  &__overlay
+    position: absolute
+    inset: 0
+    background: linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0.78))
+
+  &__heroContent
+    position: relative
+    z-index: 2
+    display: grid
+    align-items: center
+    min-height: 70vh
+
+  &__heroText
+    max-width: 720px
+    padding: 2rem 0
+
+  &__kicker
+    margin: 0 0 0.75rem 0
+    font-size: 0.95rem
+    letter-spacing: 0.08em
+    text-transform: uppercase
+    opacity: 0.85
+
+  &__title
+    margin: 0 0 0.8rem 0
+    font-size: clamp(2.8rem, 5vw, 4.2rem)
+    line-height: 1.05
+    letter-spacing: -0.03em
+
+  &__subtitle
+    margin: 0 0 1.6rem 0
+    font-size: clamp(1.05rem, 1.4vw, 1.25rem)
+    line-height: 1.65
+    opacity: 0.9
+
+  &__ctaRow
+    display: flex
+    gap: 0.9rem
+    flex-wrap: wrap
+    margin-bottom: 1.1rem
+
+  &__button
+    padding: 0.9rem 1.4rem
+    border-radius: 999px
+    font-size: 1rem
+    cursor: pointer
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease
+    border: 1px solid transparent
+
+    &:hover
+      transform: translateY(-2px)
+
+  &__button--primary
+    background: $primary-color
+    color: white
+
+    &:hover
+      background: $secondary-color
+
+  &__button--ghost
+    background: rgba(255,255,255,0.08)
+    border-color: rgba(255,255,255,0.25)
+    color: white
+
+    &:hover
+      background: rgba(255,255,255,0.14)
+      border-color: rgba(255,255,255,0.35)
+
+  &__metaRow
+    display: flex
+    gap: 0.6rem
+    flex-wrap: wrap
+    margin-top: 0.25rem
+
+  &__pill
+    display: inline-flex
+    align-items: center
+    gap: 0.4rem
+    padding: 0.35rem 0.7rem
+    border-radius: 999px
+    background: rgba(0,0,0,0.25)
+    border: 1px solid rgba(255,255,255,0.16)
+    font-size: 0.9rem
+    opacity: 0.95
+
+  // ---------- Grids & Cards ----------
+  &__grid2
+    display: grid
+    grid-template-columns: repeat(2, minmax(0, 1fr))
+    gap: 1.25rem
+
+  &__grid3
+    display: grid
+    grid-template-columns: repeat(3, minmax(0, 1fr))
+    gap: 1.25rem
+
+  &__card
+    background: white
+    border: 1px solid rgba(0,0,0,0.07)
+    border-radius: 16px
+    padding: 1.25rem
+    box-shadow: 0 6px 22px rgba(0,0,0,0.06)
+
+  // Alt sections: cards a bit tinted to sit nicely on background
+  &__section--alt
+    .home__card
+      background: rgba(255,255,255,0.75)
+      backdrop-filter: blur(6px)
+
+  // Step cards
+  &__stepCard
+    position: relative
+    border-radius: 16px
+    padding: 1.35rem 1.25rem 1.25rem 1.25rem
+    background: white
+    border: 1px solid rgba(0,0,0,0.07)
+    box-shadow: 0 6px 22px rgba(0,0,0,0.06)
+
+  &__stepBadge
+    width: 34px
+    height: 34px
+    border-radius: 999px
+    display: grid
+    place-items: center
+    font-weight: 700
     background: $detail-color
-    padding: 0.5rem 1rem
-    border-radius: 20px
-    font-weight: 500
+    color: $primary-color
+    margin-bottom: 0.85rem
+
+  // ---------- Lists ----------
+  &__list
+    list-style: none
+    padding: 0
+    margin: 0
+
+  &__listItem
+    position: relative
+    padding-left: 1.1rem
+    margin: 0.65rem 0
+    line-height: 1.65
+
+    &::before
+      content: "•"
+      position: absolute
+      left: 0
+      color: $detail-color
+
+  &__note
+    margin-top: 1.25rem
+    padding: 1rem 1.1rem
+    border-radius: 14px
+    background: rgba(0,0,0,0.03)
+    border: 1px solid rgba(0,0,0,0.06)
+    line-height: 1.65
+
+  // ---------- Tech chips ----------
+  &__tech
+    display: flex
+    flex-wrap: wrap
+    gap: 0.7rem
+
+  &__chip
+    background: $detail-color
+    padding: 0.5rem 0.9rem
+    border-radius: 999px
+    font-weight: 600
+    font-size: 0.95rem
+    color: $primary-color
+
+  // ---------- Responsive ----------
+  @media (max-width: 900px)
+    &__container
+      padding: 0 6%
+
+    &__grid3
+      grid-template-columns: 1fr
+
+    &__grid2
+      grid-template-columns: 1fr
+
+    &__hero
+      text-align: center
+
+    &__heroText
+      margin: 0 auto
+
+    &__ctaRow
+      justify-content: center
+
+    &__metaRow
+      justify-content: center
+
+// ---------------- Animations ----------------
+
+// Hero entrance (on load)
+@keyframes heroIn
+  from
+    opacity: 0
+    transform: translateY(10px)
+    filter: blur(2px)
+  to
+    opacity: 1
+    transform: translateY(0)
+    filter: blur(0)
+
+.hero-in
+  opacity: 0
+  animation: heroIn 700ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards
+
+.hero-in--1
+  animation-delay: 120ms
+.hero-in--2
+  animation-delay: 220ms
+.hero-in--3
+  animation-delay: 340ms
+.hero-in--4
+  animation-delay: 460ms
+
+// Reveal-on-scroll (IntersectionObserver toggles .is-visible)
+@keyframes revealIn
+  from
+    opacity: 0
+    transform: translateY(14px)
+  to
+    opacity: 1
+    transform: translateY(0)
+
+.reveal
+  opacity: 0
+  transform: translateY(14px)
+  transition: opacity 500ms ease, transform 500ms ease
+  will-change: opacity, transform
+
+.reveal.is-visible
+  opacity: 1
+  transform: translateY(0)
+  animation: revealIn 520ms ease forwards
+
+// Stagger helpers (optional)
+.reveal--1
+  transition-delay: 60ms
+.reveal--2
+  transition-delay: 120ms
+.reveal--3
+  transition-delay: 180ms
+
+// Accessibility: reduce motion
+@media (prefers-reduced-motion: reduce)
+  .hero-in
+    opacity: 1
+    animation: none
+
+  .reveal
+    opacity: 1
+    transform: none
+    transition: none
+    animation: none
