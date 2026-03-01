@@ -31,7 +31,7 @@ const cleanConns = (connections, countries) => {
         const color = getRelationColor(c.relation)
         const width = calcRelationWidth(c.relation)
 
-        return {source: {id: country_1.id, lat: country_1.latitude, lon: country_1.longitude}, target: {id: country_2.id, lat: country_2.latitude, lon: country_2.longitude}, color: color, width: width}
+        return {source: {id: country_1.id, lat: country_1.latitude, lon: country_1.longitude}, target: {id: country_2.id, lat: country_2.latitude, lon: country_2.longitude}, color: color, width: width, relation: c.relation}
     })
 }
 

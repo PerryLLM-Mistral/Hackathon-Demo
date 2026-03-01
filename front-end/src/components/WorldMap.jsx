@@ -15,7 +15,9 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
 
     const cleanConnections = useMemo(() => {
         if (!countriesData.length || !connections.length) return []
-        return cleanConns(connections, countriesData)
+        let cleaned = cleanConns(connections, countriesData)
+        cleaned = cleaned.filter((c) => c.relation > 20 || c.relation < -20)
+        return cleaned
     }, [countriesData, connections])
 
     useEffect(() => {
