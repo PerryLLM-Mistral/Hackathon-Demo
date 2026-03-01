@@ -1,37 +1,26 @@
 from sqlalchemy.orm import Session
-from app.src.models.models import Country, Relationship
+from app.src.models.models import Country
 
-def reset_stats(db: Session):
+def reset_selected(db: Session):
     """
-    Performs a soft reset: clears all relations and resets game-related 
-    statistics to zero while preserving identity and geographical data.
+    Sets the 'selected' column to False for all countries in the database.
     """
     try:
-        # Clear all existing relations
-        db.query(Relationship).delete()
-
-        # Retrieve all countries currently in the database
-        countries = db.query(Country).all()
-
-        for country in countries:
-            # Reset game-specific metrics to zero
-            # id, name, latitude and longitude remain untouched
-            country.economy = 0
-            country.social = 0
-            country.demography = 0
-            country.technology = 0
-            country.military_power = 0
-            country.n_habitants = 0 
-            
-        # Commit changes
+        # Perform an update for the 'selected' flag
+        num_updated = db.query(Country).update({Country.selected: False})
+        
+        # Save changes
         db.commit()
+        
         return {
             "status": "success", 
-            "message": "Global stats reset to zero. Identity and coordinates preserved."
+            "message": f"Selection cleared for {num_updated} countries."
         }
     
     except Exception as e:
-        # Revert changes
+        # Undo changes if something goes wrong
         db.rollback()
-        print(f"DEBUG [Reset Error]: {e}")
-        return {"status": "error", "message": str(e)}
+        return {
+            "status": "error", 
+            "message": str(e)
+        }
