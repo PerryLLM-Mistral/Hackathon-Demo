@@ -173,6 +173,25 @@ Once you navigate to the map and begin a session, the app operates as a turn-bas
 ![PerrySphere Map 2](img/app_map_2.png)
 
 
+## API Documentation (Swagger)
+
+Once the backend container finishes building and starts successfully, you will see output similar to this:
+
+```bash
+postgres_db      | 2026-03-01 23:47:25.476 UTC [1] LOG:  database system is ready to accept connections
+Container postgres_db Healthy 
+fastapi_backend  | INFO:     Started server process [1]
+fastapi_backend  | INFO:     Waiting for application startup.
+fastapi_backend  | Database already initialized. Skipping seed.
+fastapi_backend  | INFO:     Application startup complete.
+fastapi_backend  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+```
+
+With the backend running, you can **view and test all the available routes of the app** by visiting `http://localhost:8000/docs` in your browser.
+
+![Swagger](img/swagger.png)
+
+
 ## Core Concepts
 
 * **WorldState**: global representation of the simulation.
@@ -199,10 +218,11 @@ Please note the following technical decisions and limitations regarding the visu
 
 ## Tech Stack
 
-* React
-* Python
-* FastAPI
-* Pydantic
-* Asyncio
-
-* Mistral LLM API
+<div align="center">
+    <a href="https://react.dev/" target="_blank"><img style="margin: 20px" src="https://profilinator.rishav.dev/skills-assets/react-original-wordmark.svg" alt="React" height="55" /></a>
+    <a href="https://www.python.org/" target="_blank"><img style="margin: 20px" src="https://profilinator.rishav.dev/skills-assets/python-original.svg" alt="Python" height="55" /></a>
+    <a href="https://fastapi.tiangolo.com/" target="_blank"><img style="margin: 20px" src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/fastapi/fastapi-original.svg" alt="FastAPI" height="55" /></a>
+    <a href="https://docs.pydantic.dev/" target="_blank"><img style="margin: 20px" src="https://img.shields.io/badge/Pydantic-E92063?style=flat&logo=pydantic&logoColor=white" alt="Pydantic" height="35" /></a>
+    <a href="https://docs.python.org/3/library/asyncio.html" target="_blank"><img style="margin: 20px" src="https://img.shields.io/badge/Asyncio-3776AB?style=flat&logo=python&logoColor=white" alt="Asyncio" height="35" /></a>
+    <a href="https://mistral.ai/" target="_blank"><img style="margin: 20px" src="https://img.shields.io/badge/Mistral_LLM-F26522?style=flat&logo=mistralai&logoColor=white" alt="Mistral LLM" height="35" /></a>
+</div>
