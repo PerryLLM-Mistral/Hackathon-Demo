@@ -1,16 +1,6 @@
 # app/debug_battle.py
-#
-# Run (inside the backend container so "db" hostname resolves):
-#   python -m app.debug_battle
-#
-# What it does:
-# - loads initial WorldState from Postgres (countries + relationships)
-# - builds agents dynamically from Countries table (no hardcode)
-# - picks ONLY 5 countries for the game (random sample from DB)
-# - runs LLM decisions per agent using ONLY the 5-country slice (prevents token explosion)
-# - applies actions in-memory to the full world (or just the slice; here we apply to the slice)
-# - optionally persists Turn + ActionHistory each turn (toggle with a boolean)
-# - optionally notifies the FastAPI bridge (/events/broadcast)
+
+# docker exec -it fastapi_backend /bin/bash
 
 from __future__ import annotations
 
@@ -20,42 +10,31 @@ load_dotenv()  # MUST be before importing app.database
 import asyncio
 import secrets
 import requests
+from itertools import combinations
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.multi_llm.schemas.world import WorldState
+from app.multi_llm.schemas.world import WorldState, CountryState, RelationState
 from app.multi_llm.agents.country_agent import CountryAgent
 from app.multi_llm.llm.provider import MistralProvider
 from app.simulation.engine import apply_action, ensure_relation
-from app.simulation.state_store import load_world_state, persist_turn_actions
+from app.simulation.state_store import persist_turn_actions
 
-from app.src.models.models import Country, Relationship
+from app.src.models.models import Turn, Country, Relationship  # ✅ add Country, Relationship
 
 
 # -----------------------------------------------------------------------------
 # CONFIG
 # -----------------------------------------------------------------------------
-RUN_ID = "demo"  # stable run id for debugging (or use secrets.token_hex(4))
-
-# Toggle DB writes to Turn + ActionHistory (via persist_turn_actions)
-WRITE_ACTION_HISTORY = True
-
-# Optional: notify FastAPI bridge (websocket UI) via /events/broadcast
+RUN_ID = "demo"
+WRITE_ACTION_HISTORY = False
 NOTIFY_BRIDGE = True
-
-# Optional: seed DB if empty (this writes to countries/relationships)
-# Keep False if you want a pure read-only run
-SEED_IF_EMPTY = True
-
-# How many turns to run
 N_TURNS = 3
 
-# How many countries in the match
-N_COUNTRIES_IN_MATCH = 5
-
-# If True, sample only from countries.selected == True
-USE_SELECTED_ONLY = False
+# "frontend selection"
+SELECTED_IDS = ["USA", "CHN", "RUS", "ESP", "FRA"]
 
 
 # -----------------------------------------------------------------------------
@@ -94,130 +73,100 @@ def print_all_countries(world: WorldState) -> None:
 
 
 # -----------------------------------------------------------------------------
-# DB helpers
+# DB-backed world builder (only for the selected IDs)
 # -----------------------------------------------------------------------------
-def seed_if_empty(db: Session) -> None:
-    if db.query(Country).first() is not None:
-        return
+def get_start_turn_number(db: Session, run_id: str) -> int:
+    if not WRITE_ACTION_HISTORY:
+        return 0
 
-    db.add_all(
-        [
-            Country(
-                id="USA",
-                name="United States",
-                economy=80,
-                social=60,
-                demography=50,
-                technology=90,
-                military_power=85,
-                n_habitants=330,
-                latitude=38.0,
-                longitude=-97.0,
-                selected=True,
-            ),
-            Country(
-                id="CHN",
-                name="China",
-                economy=85,
-                social=55,
-                demography=60,
-                technology=80,
-                military_power=75,
-                n_habitants=1400,
-                latitude=35.0,
-                longitude=103.0,
-                selected=True,
-            ),
-            Country(
-                id="RUS",
-                name="Russia",
-                economy=70,
-                social=50,
-                demography=55,
-                technology=75,
-                military_power=80,
-                n_habitants=145,
-                latitude=55.0,
-                longitude=37.0,
-                selected=True,
-            ),
-            Country(
-                id="ESP",
-                name="Spain",
-                economy=70,
-                social=70,
-                demography=45,
-                technology=70,
-                military_power=45,
-                n_habitants=47,
-                latitude=40.0,
-                longitude=-3.7,
-                selected=True,
-            ),
-            Country(
-                id="FRA",
-                name="France",
-                economy=75,
-                social=70,
-                demography=45,
-                technology=75,
-                military_power=55,
-                n_habitants=68,
-                latitude=46.2,
-                longitude=2.2,
-                selected=True,
-            ),
-        ]
+    last_turn = (
+        db.query(func.max(Turn.turn_number))
+        .filter(Turn.run_id == run_id)
+        .scalar()
     )
-    db.flush()
-
-    db.add_all(
-        [
-            Relationship(country_1="USA", country_2="CHN", relation=0),
-            Relationship(country_1="USA", country_2="RUS", relation=0),
-            Relationship(country_1="CHN", country_2="RUS", relation=0),
-            Relationship(country_1="ESP", country_2="FRA", relation=0),
-            Relationship(country_1="USA", country_2="FRA", relation=0),
-        ]
-    )
-    db.commit()
+    return int(last_turn + 1) if last_turn is not None else 0
 
 
-def pick_match_country_ids(db: Session) -> list[str]:
-    q = db.query(Country.id)
-    if USE_SELECTED_ONLY:
-        q = q.filter(Country.selected.is_(True))
-
-    ids = [r[0] for r in q.all()]
-    if len(ids) < N_COUNTRIES_IN_MATCH:
-        raise RuntimeError(
-            f"Not enough countries in DB to start a match of {N_COUNTRIES_IN_MATCH}. "
-            f"Found {len(ids)}."
-        )
-
-    rng = secrets.SystemRandom()
-    return rng.sample(ids, k=N_COUNTRIES_IN_MATCH)
-
-
-def build_agents_from_db(db: Session, match_ids: set[str]) -> dict[str, CountryAgent]:
+def build_world_from_selected_ids(db: Session, selected_ids: list[str], start_turn: int) -> WorldState:
+    # Fetch only the requested countries
     rows = (
         db.query(Country)
-        .filter(Country.id.in_(match_ids))
+        .filter(Country.id.in_(selected_ids))
         .order_by(Country.id.asc())
         .all()
     )
+
+    found_ids = {c.id for c in rows}
+    missing = [cid for cid in selected_ids if cid not in found_ids]
+
+    if missing:
+        section("WARNING: selected IDs not found in DB")
+        print(f"Missing country IDs: {missing}")
+        print("Only existing countries will be used for this debug run.")
+
     if not rows:
-        raise RuntimeError("No countries found for the selected match ids.")
-    return {c.id: CountryAgent(country_id=c.id, country_name=c.name) for c in rows}
+        raise RuntimeError(
+            "None of the SELECTED_IDS exist in the DB. "
+            "Insert countries first (or pick valid ids) and re-run."
+        )
 
-
-def slice_world(world: WorldState, match_ids: set[str]) -> WorldState:
-    countries = [c for c in world.countries if c.id in match_ids]
-    relations = [
-        r for r in world.relations
-        if (r.country_1 in match_ids and r.country_2 in match_ids)
+    # Build CountryState list from DB rows
+    countries = [
+        CountryState(
+            id=c.id,
+            name=c.name,
+            economy=c.economy,
+            social=c.social,
+            demography=c.demography,
+            technology=c.technology,
+            military_power=c.military_power,
+            n_habitants=c.n_habitants,
+            latitude=c.latitude,
+            longitude=c.longitude,
+        )
+        for c in rows
     ]
-    return WorldState(turn=world.turn, countries=countries, relations=relations)
+
+    # Build relations only among the found ids
+    ids_in_match = [c.id for c in rows]
+
+    # If Relationship table has rows, load those; otherwise default to 0 for every pair
+    rel_rows = (
+        db.query(Relationship)
+        .filter(
+            Relationship.country_1.in_(ids_in_match),
+            Relationship.country_2.in_(ids_in_match),
+        )
+        .order_by(Relationship.id.asc())
+        .all()
+    )
+
+    relations: list[RelationState] = []
+    used_pairs: set[tuple[str, str]] = set()
+
+    # Add stored relationships (if any)
+    for r in rel_rows:
+        a, b = r.country_1, r.country_2
+        key = (a, b) if a < b else (b, a)
+        if key in used_pairs:
+            continue
+        used_pairs.add(key)
+        relations.append(
+            RelationState(
+                id=r.id,
+                country_1=a,
+                country_2=b,
+                relation=r.relation,
+                pending_alliance_from=None,
+            )
+        )
+
+   
+    return WorldState(turn=start_turn, countries=countries, relations=relations)
+
+
+def build_agents_from_db_rows(rows: list[Country]) -> dict[str, CountryAgent]:
+    return {c.id: CountryAgent(country_id=c.id, country_name=c.name) for c in rows}
 
 
 # -----------------------------------------------------------------------------
@@ -271,7 +220,6 @@ async def run_turn(
     for cid in order:
         agent = agents[cid]
 
-        # IMPORTANT: the LLM sees ONLY the 5-country match world
         action = await agent.decide_llm(world_match, provider)
         actions.append(action)
 
@@ -318,20 +266,21 @@ async def run_turn(
 async def main() -> None:
     db = SessionLocal()
     try:
-        if SEED_IF_EMPTY:
-            seed_if_empty(db)
+        start_turn = get_start_turn_number(db, run_id=RUN_ID)
 
-        # Load full state (may contain many countries)
-        world_full = load_world_state(db, run_id=RUN_ID)
+        # Fetch rows once (to build agents) and world from DB
+        rows = (
+            db.query(Country)
+            .filter(Country.id.in_(SELECTED_IDS))
+            .order_by(Country.id.asc())
+            .all()
+        )
 
-        # Pick exactly 5 countries for the match
-        match_ids = set(pick_match_country_ids(db))
+        # Build world (also prints missing ids warning)
+        world_match = build_world_from_selected_ids(db, SELECTED_IDS, start_turn=start_turn)
 
-        # Slice world down to match
-        world_match = slice_world(world_full, match_ids)
-
-        # Build agents only for match countries
-        agents = build_agents_from_db(db, match_ids=match_ids)
+        # Agents only for found countries
+        agents = build_agents_from_db_rows(rows)
         base_order = list(agents.keys())
 
         provider = MistralProvider()
@@ -343,11 +292,6 @@ async def main() -> None:
         for _ in range(N_TURNS):
             await run_turn(db, world_match, agents, provider, base_order=base_order, run_id=RUN_ID)
             world_match.turn += 1
-
-            # Only reload from DB if we're writing; otherwise DB doesn't reflect changes
-            if WRITE_ACTION_HISTORY:
-                world_full = load_world_state(db, run_id=RUN_ID)
-                world_match = slice_world(world_full, match_ids)
 
     finally:
         db.close()
