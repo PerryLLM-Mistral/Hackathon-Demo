@@ -6,7 +6,7 @@ from app.simulation.engine import SimulationEngine
 from app.database import engine as db_engine
 from app.database import SessionLocal
 from app.src.models import models
-from app.src.routes import countries, relationships, simulation, ws, events, turns, country_state_history, relationship_history, action_history
+from app.src.routes import countries, relationships, simulation, ws, events, turns, country_state_history, relationship_history, action_history, reset
 from app.scripts.seed_db import seed 
 
 # Create the database tables
