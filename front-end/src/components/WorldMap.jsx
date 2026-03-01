@@ -23,6 +23,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
     useEffect(() => {
         const ids = countriesData.map((country) => country.id)
         setSelectedCountries(ids)
+        console.log("HOLA")
     }, [countriesData])
     
     const filteredGeo = {
