@@ -18,10 +18,17 @@ app = FastAPI()
 # ===============================
 @app.on_event("startup")
 async def startup_event():
-    print("Running initial seed...")
-    await seed()
-    print("Seed finished successfully")
+    from app.database import SessionLocal
+    db = SessionLocal()
+    country_count = db.query(models.Country).count()
+    db.close()
 
+    if country_count == 0:
+        print("Database empty. Running initial seed...")
+        await seed()
+        print("Seed finished successfully")
+    else:
+        print("Database already initialized. Skipping seed.")
 # ===============================
 # CORS CONFIGURATION
 # ===============================
