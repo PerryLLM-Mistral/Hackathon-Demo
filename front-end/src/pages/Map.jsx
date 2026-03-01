@@ -1,5 +1,6 @@
 import './sass/Map.sass'
 import WorldMapLeaflet from '../components/WorldMap'
+import WorldMapSelection from '../components/SelectCountryMap'
 import fetchCountries from '../hooks/countries'
 import fetchAllRelations from '../hooks/relations'
 import cleanConns from '../utils/cleanConnections'
@@ -7,6 +8,7 @@ import { useEffect, useState, useRef } from 'react'
 
 const Map = () => {
     const [countries, setCountries] = useState([]);
+    const [selectedCountries, setSelectedCountries] = useState([]);
     const [connections, setConnections] = useState([]);
     const [error, setError] = useState(null);
     const [messages, setMessages] = useState([
@@ -54,7 +56,10 @@ const Map = () => {
         <div className="world-map">
             
             <section className="relations-map">
-                <WorldMapLeaflet countriesData={countries} connections={connections} />
+                {selectedCountries.length > 0 ? (
+                    <WorldMapLeaflet countriesData={countries} connections={connections} />) : (
+                    <WorldMapSelection countriesData={countries} />)
+                }
             </section>
             <section className="bot-chat">
                 <div className="chat-box">
