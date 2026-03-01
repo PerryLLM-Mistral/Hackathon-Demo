@@ -26,7 +26,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
     const filteredGeo = {
         ...worldGeo,
             features: worldGeo.features.filter((feature) =>
-                selectedCountries.includes(feature.properties.iso_a3)
+                selectedCountries.includes(feature.properties.adm0_a3)
             ),
     };
 
@@ -34,7 +34,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
         if (!countriesData) return;
         const name = feature.properties.name;
         const population = feature.properties.pop_est;
-        const country = countriesData.find((c) => c.id === feature.properties.iso_a3)
+        const country = countriesData.find((c) => c.id === feature.properties.adm0_a3)
 
         const popupContent = `<strong>${name}</strong><br/>
                                 Population: ${population.toLocaleString()}<br/>
@@ -67,7 +67,7 @@ const WorldMapLeaflet = ({ countriesData, connections }) => {
             <MapContainer 
                 center={[20, 0]} 
                 minZoom={2}
-                maxZoom={3}
+                maxZoom={10}
                 zoom={2} 
                 zoomControl={false}
                 worldCopyJump={false}
