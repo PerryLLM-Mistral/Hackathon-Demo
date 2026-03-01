@@ -25,7 +25,6 @@ class CountryAgent(BaseAgent):
     - decide: heuristic fallback (stochastic)
     - decide_llm: tool-based LLM decision + exploration:
         * MUST RESPOND to pending alliances
-        * epsilon-greedy: sometimes bypass LLM to avoid deterministic loops
         * sometimes "conflict explore" to force SANCTION/WAR consideration
         * nonce embedded in WORLD payload to reduce repeated outputs
 
@@ -44,7 +43,6 @@ class CountryAgent(BaseAgent):
         self._last_action: Optional[tuple[ActionType, Optional[str], int]] = None
 
         # exploration knobs (tune)
-        self.epsilon_bypass_llm = 0.12      # 12% of the time: use heuristic even if LLM available
         self.conflict_explore_prob = 0.18   # 18% of normal turns: bias towards SANCTION/WAR
         self.min_econ_for_alliance = 30    # Do not accept poor alliates
         self.min_social_for_war = 40          # A country with bad social status does not want wars
