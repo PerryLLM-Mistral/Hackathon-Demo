@@ -29,6 +29,7 @@ async def startup_event():
         print("Seed finished successfully")
     else:
         print("Database already initialized. Skipping seed.")
+
 # ===============================
 # CORS CONFIGURATION
 # ===============================

@@ -6,9 +6,9 @@ from app.src.services import reset
 router = APIRouter(prefix="/reset", tags=["Reset Database"])
 
 @router.post("/reset")
-async def handle_soft_reset(db: Session = Depends(get_db)):
+async def handle_reset(db: Session = Depends(get_db)):
     # Call the controller logic
-    result = reset.reset_stats(db)
+    result = reset.reset_selected(db)
     
     # If the controller returned an error status, raise an exception
     if result["status"] == "error":
