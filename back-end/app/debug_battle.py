@@ -39,7 +39,7 @@ from app.src.models.models import Country, Relationship
 RUN_ID = "demo"  # stable run id for debugging (or use secrets.token_hex(4))
 
 # Toggle DB writes to Turn + ActionHistory (via persist_turn_actions)
-WRITE_ACTION_HISTORY = False
+WRITE_ACTION_HISTORY = True
 
 # Optional: notify FastAPI bridge (websocket UI) via /events/broadcast
 NOTIFY_BRIDGE = True
