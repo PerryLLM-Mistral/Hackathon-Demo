@@ -12,12 +12,9 @@ const createNewConns = (connections, relation) => {
 
 const updateValues = (connections, setConnections, new_data) => {
     const relation = getActionRelation(connections, new_data)
-    console.log("Relacion: ", relation)
     console.log("Data: ", new_data)
     relation.relation = new_data.metadata.relation
-    console.log("Nueva relación: ", relation)
     const new_connections = createNewConns(connections, relation)
-    console.log("Nuevas: ", new_connections)
     setConnections(new_connections)
 }
 

@@ -14,6 +14,7 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
         fillOpacity: 0.2,
     }
     let simulationCountries = [];
+    let count = 0;
 
     useEffect(() => {
         const ids = countriesData.map((country) => country.id)
@@ -60,8 +61,10 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
 
         layer.on("click", function (e) {
             if (!selected) {
+                if (count >= 5) return;
                 simulationCountries.push(country)
                 selected = true;
+                count += 1;
                 layer.setStyle({
                     weight: 4,
                     color: "#c23917",
@@ -70,6 +73,7 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
             } else {
                 simulationCountries = simulationCountries.filter((c) => c.id !== country.id)
                 selected = false;
+                count -= 1;
                 layer.setStyle({                    
                     weight: 4,
                     color: "#05aab3",

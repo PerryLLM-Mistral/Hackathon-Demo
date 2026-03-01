@@ -52,6 +52,7 @@ const Map = () => {
     }, []);
 
     const startSimulation = async () => {
+        if (selectedCountries.length == 0) alert("Selecciona 5 países");
         const data = await useSimulation();
     }
     
