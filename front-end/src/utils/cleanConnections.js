@@ -15,8 +15,16 @@ const calcRelationWidth = (relation) => {
     return Math.round(Math.abs(relation) / 20) 
 }
 
+const getConnsFromCountries = (connections, countries) => {
+    const countries_ids = countries.map((c) => c.id)
+    const countries_conns = connections.filter((conn) => countries_ids.includes(conn.country_1) && countries_ids.includes(conn.country_2))
+
+    return countries_conns
+}
+
 const cleanConns = (connections, countries) => {
-    return connections.map((c) => {
+    const countries_connections = getConnsFromCountries(connections, countries)
+    return countries_connections.map((c) => {
         const country_1 = getCountryData(c.country_1, countries)
         const country_2 = getCountryData(c.country_2, countries)
 

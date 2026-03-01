@@ -57,8 +57,8 @@ const Map = () => {
             
             <section className="relations-map">
                 {selectedCountries.length > 0 ? (
-                    <WorldMapLeaflet countriesData={countries} connections={connections} />) : (
-                    <WorldMapSelection countriesData={countries} />)
+                    <WorldMapLeaflet countriesData={selectedCountries} connections={connections} />) : (
+                    <WorldMapSelection countriesData={countries} setCountries={setSelectedCountries}/>)
                 }
             </section>
             <section className="bot-chat">

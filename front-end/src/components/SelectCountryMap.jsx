@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Polyline, GeoJSON } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import worldGeo from '../assets/world.geo.json'
@@ -11,6 +11,7 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
         fillColor: "#152242",
         fillOpacity: 0.2,
     }
+    let simulationCountries = [];
 
     useEffect(() => {
         const ids = countriesData.map((country) => country.id)
@@ -57,6 +58,7 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
 
         layer.on("click", function (e) {
             if (!selected) {
+                simulationCountries.push(country)
                 selected = true;
                 layer.setStyle({
                     weight: 4,
@@ -64,6 +66,7 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
                     fillColor: "#c23917",
                 });
             } else {
+                simulationCountries = simulationCountries.filter((c) => c.id !== country.id)
                 selected = false;
                 layer.setStyle({                    
                     weight: 4,
@@ -71,14 +74,24 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
                     fillColor: "#05aab3"
                 })
             }
+            console.log(simulationCountries);
         });
 
         layer.on("mouseout", function () {
             if (selected) return;
             layer.setStyle(countryStyle);
         });
-
     };
+
+    const sendCountries = () => {
+        if (simulationCountries.length < 5 || simulationCountries.length > 5) {
+            console.log(simulationCountries.length);
+            alert("Select only 5 countries");
+            return;
+        }
+
+        setCountries(simulationCountries)
+    }
 
     return (
         <>
@@ -101,6 +114,23 @@ const WorldMapSelection = ({ countriesData, setCountries }) => {
                 />
                 <GeoJSON key={selectedCountries.join('-')} data={filteredGeo} style={countryStyle} onEachFeature={onEachFeature}/>
             </MapContainer>
+            <button
+                style={{
+                    position: 'absolute',
+                    top: '2%',
+                    right: '22%',
+                    zIndex: 1000, // importante para que esté encima del mapa
+                    padding: '8px 12px',
+                    backgroundColor: '#05aab3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                }}
+                onClick={sendCountries}
+            >
+                Select Countries
+            </button>
         </>
     );
 };
