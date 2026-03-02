@@ -218,11 +218,20 @@ Please note the following technical decisions and limitations regarding the visu
 
 ## Tech Stack
 
+<br>
+
 <div align="center">
-    <a href="https://react.dev/" target="_blank"><img style="margin: 20px" src="https://profilinator.rishav.dev/skills-assets/react-original-wordmark.svg" alt="React" height="55" /></a>
-    <a href="https://www.python.org/" target="_blank"><img style="margin: 20px" src="https://profilinator.rishav.dev/skills-assets/python-original.svg" alt="Python" height="55" /></a>
-    <a href="https://fastapi.tiangolo.com/" target="_blank"><img style="margin: 20px" src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/fastapi/fastapi-original.svg" alt="FastAPI" height="55" /></a>
-    <a href="https://docs.pydantic.dev/" target="_blank"><img style="margin: 20px" src="https://img.shields.io/badge/Pydantic-E92063?style=flat&logo=pydantic&logoColor=white" alt="Pydantic" height="35" /></a>
-    <a href="https://docs.python.org/3/library/asyncio.html" target="_blank"><img style="margin: 20px" src="https://img.shields.io/badge/Asyncio-3776AB?style=flat&logo=python&logoColor=white" alt="Asyncio" height="35" /></a>
-    <a href="https://mistral.ai/" target="_blank"><img style="margin: 20px" src="https://img.shields.io/badge/Mistral_LLM-F26522?style=flat&logo=mistralai&logoColor=white" alt="Mistral LLM" height="35" /></a>
+    <a href="https://react.dev/" target="_blank"><img height="45" src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React" /></a>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <a href="https://www.python.org/" target="_blank"><img height="45" src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54" alt="Python" /></a>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <a href="https://fastapi.tiangolo.com/" target="_blank"><img height="45" src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" /></a>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <a href="https://docs.pydantic.dev/" target="_blank"><img height="45" src="https://img.shields.io/badge/Pydantic-E92063?style=for-the-badge&logo=pydantic&logoColor=white" alt="Pydantic" /></a>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <a href="https://docs.python.org/3/library/asyncio.html" target="_blank"><img height="45" src="https://img.shields.io/badge/Asyncio-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Asyncio" /></a>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <a href="https://mistral.ai/" target="_blank"><img height="45" src="https://img.shields.io/badge/Mistral_LLM-F26522?style=for-the-badge&logo=mistralai&logoColor=white" alt="Mistral LLM" /></a>
 </div>
+
+<br>
