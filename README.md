@@ -36,7 +36,7 @@ The system is organized into three layers:
    
    Visualizes the world state (countries, relations, events) and provides a UI to run turns / trigger actions.
 
-3. **API Layer (FastAPI)**
+2. **API Layer (FastAPI)**
    
    Bridges the frontend with the backend logic, exposing endpoints to:
 
@@ -44,15 +44,23 @@ The system is organized into three layers:
    * step the simulation (turn-based loop)
    * return updated state for visualization
 
-5. **Multi-LLM + Simulation Core**
+3. **Multi-LLM + Simulation Core**
 
    * **Multi-LLM layer**: country agents select structured actions using Mistral models
    * **Simulation engine**: applies deterministic rules and quantitative effects to update the world
 
+To provide a seamless and responsive user experience, the communication between the React frontend and the FastAPI backend leverages **WebSockets**. 
 
-## LLM Integration: mistral-small-2506
+While the simulation itself operates on a turn-based logic, resolving a full turn requires multiple LLM queries that can take time to process. WebSockets enhance the architecture by providing:
 
-The cognitive core of our country agents is powered by the **`mistral-small-2506`** model via the **Mistral API**. 
+  * **Instant UI synchronization:** The map, event logs and country statistics update immediately as soon as the backend resolves an action, without the need for manual page refreshes.
+        
+  * **Efficient communication:** By pushing state changes directly to the client, we completely eliminate the need for heavy HTTP polling. This reduces latency and keeps the server load low, even during complex, multi-agent simulation steps.
+
+
+## LLM Integration: Mistral Small 3.2
+
+The cognitive core of our country agents is powered by **Mistral Small 3.2** (specifically the **`mistral-small-2506`** endpoint) via the **Mistral API**.
 
 In a multi-agent environment where every turn requires multiple complex evaluations, we selected this specific model for three main reasons:
 
@@ -235,3 +243,4 @@ Please note the following technical decisions and limitations regarding the visu
 </div>
 
 <br>
+
